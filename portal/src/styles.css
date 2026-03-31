@@ -658,6 +658,10 @@ button {
     display: none;
   }
 
+  .menu-label small {
+    display: none;
+  }
+
   .comment-actions {
     gap: 8px;
   }
