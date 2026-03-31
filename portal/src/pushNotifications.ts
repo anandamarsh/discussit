@@ -1,6 +1,17 @@
+import { portalSupabase } from "./supabase";
+
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 const vapidPublicKey = import.meta.env.VITE_PUSH_VAPID_PUBLIC_KEY;
+
+type SerializedPushSubscription = {
+  endpoint: string;
+  expirationTime?: number | null;
+  keys: {
+    auth: string;
+    p256dh: string;
+  };
+};
 
 function requirePushConfig() {
   if (!supabaseUrl || !supabaseAnonKey || !vapidPublicKey) {
@@ -34,6 +45,42 @@ async function getRegistration() {
   return navigator.serviceWorker.register("/sw.js");
 }
 
+function serializePushSubscription(subscription: PushSubscription): SerializedPushSubscription {
+  const payload = subscription.toJSON();
+
+  if (!payload.endpoint || !payload.keys?.auth || !payload.keys?.p256dh) {
+    throw new Error("Push subscription is missing required keys.");
+  }
+
+  return {
+    endpoint: payload.endpoint,
+    expirationTime: payload.expirationTime ?? null,
+    keys: {
+      auth: payload.keys.auth,
+      p256dh: payload.keys.p256dh,
+    },
+  };
+}
+
+async function savePushSubscription(subscription: PushSubscription) {
+  const payload = serializePushSubscription(subscription);
+  const { error } = await portalSupabase.from("push_subscriptions").upsert(
+    {
+      endpoint: payload.endpoint,
+      expiration_time: payload.expirationTime ?? null,
+      keys_auth: payload.keys.auth,
+      keys_p256dh: payload.keys.p256dh,
+    },
+    { onConflict: "endpoint" },
+  );
+
+  if (error) {
+    throw new Error("Failed to save push subscription.");
+  }
+
+  return payload;
+}
+
 export async function ensurePushSubscription() {
   requirePushConfig();
 
@@ -44,13 +91,17 @@ export async function ensurePushSubscription() {
   const registration = await getRegistration();
   const existing = await registration.pushManager.getSubscription();
   if (existing) {
+    await savePushSubscription(existing);
     return existing;
   }
 
-  return registration.pushManager.subscribe({
+  const subscription = await registration.pushManager.subscribe({
     userVisibleOnly: true,
     applicationServerKey: base64UrlToUint8Array(vapidPublicKey),
   });
+
+  await savePushSubscription(subscription);
+  return subscription;
 }
 
 export async function sendTestPush() {
@@ -73,7 +124,7 @@ export async function sendTestPush() {
       Authorization: `Bearer ${supabaseAnonKey}`,
     },
     body: JSON.stringify({
-      subscription,
+      subscription: serializePushSubscription(subscription),
       title: "DiscussIt Moderator",
       body: "Moderator push notifications are working.",
       url: window.location.origin,

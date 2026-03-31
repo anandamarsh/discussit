@@ -1,4 +1,5 @@
 import { createClient } from "jsr:@supabase/supabase-js@2";
+import webpush from "npm:web-push@3.6.7";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -12,6 +13,13 @@ type CommentRequest = {
   authorName?: string;
   authorEmail?: string;
   body?: string;
+};
+
+type StoredPushSubscription = {
+  endpoint: string;
+  expiration_time?: number | null;
+  keys_auth: string;
+  keys_p256dh: string;
 };
 
 function json(status: number, body: Record<string, unknown>) {
@@ -47,6 +55,9 @@ Deno.serve(async (request) => {
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  const vapidPublicKey = Deno.env.get("VAPID_PUBLIC_KEY");
+  const vapidPrivateKey = Deno.env.get("VAPID_PRIVATE_KEY");
+  const vapidSubject = Deno.env.get("VAPID_SUBJECT") ?? "mailto:noreply@discussit.app";
 
   if (!supabaseUrl || !serviceRoleKey) {
     return json(500, { error: "Missing Supabase server configuration" });
@@ -158,6 +169,53 @@ Deno.serve(async (request) => {
 
   if (logError) {
     return json(500, { error: "Failed to record submission rate limit" });
+  }
+
+  if (vapidPublicKey && vapidPrivateKey) {
+    webpush.setVapidDetails(vapidSubject, vapidPublicKey, vapidPrivateKey);
+
+    const { data: subscriptions, error: subscriptionError } = await admin
+      .from("push_subscriptions")
+      .select("endpoint, expiration_time, keys_auth, keys_p256dh");
+
+    if (!subscriptionError && subscriptions?.length) {
+      const notificationPayload = JSON.stringify({
+        title: "DiscussIt Moderator",
+        body: `${data.author_name}: ${data.body.slice(0, 120)}`,
+        url: pageUrl,
+        tag: `comment-${data.id}`,
+      });
+
+      await Promise.all(
+        subscriptions.map(async (subscription: StoredPushSubscription) => {
+          try {
+            await webpush.sendNotification(
+              {
+                endpoint: subscription.endpoint,
+                expirationTime: subscription.expiration_time ?? null,
+                keys: {
+                  auth: subscription.keys_auth,
+                  p256dh: subscription.keys_p256dh,
+                },
+              },
+              notificationPayload,
+            );
+          } catch (error) {
+            const statusCode =
+              typeof error === "object" && error !== null && "statusCode" in error
+                ? Number((error as { statusCode?: number }).statusCode)
+                : 0;
+
+            if (statusCode === 404 || statusCode === 410) {
+              await admin.from("push_subscriptions").delete().eq("endpoint", subscription.endpoint);
+              return;
+            }
+
+            console.error("Push delivery failed", error);
+          }
+        }),
+      );
+    }
   }
 
   return json(200, {
