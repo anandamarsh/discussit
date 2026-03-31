@@ -429,81 +429,84 @@ function App() {
         <>
           <button type="button" className="menu-backdrop" aria-label="Close menu" onClick={() => setMenuOpen(false)} />
           <aside className="menu-sheet">
-          <div className="menu-sheet-header">
-            <strong>URLs</strong>
-            <button type="button" className="menu-close" onClick={() => setMenuOpen(false)}>
-              ✕
-            </button>
-          </div>
+            <div className="menu-sheet-header">
+              <strong>URLs</strong>
+              <button type="button" className="menu-close" onClick={() => setMenuOpen(false)}>
+                ✕
+              </button>
+            </div>
 
-          <button
-            type="button"
-            className={`menu-item ${selectedUrl === null ? "is-active" : ""}`}
-            onClick={() => {
-              setSelectedUrl(null);
-              setMenuOpen(false);
-            }}
-          >
-            <span>Home</span>
-            <span className="menu-count">{unreadFeed.length}</span>
-          </button>
-
-          <div className="menu-list">
-            {urlGroups.map((group) => (
+            <div className="menu-main">
               <button
                 type="button"
-                key={group.pageUrl}
-                className={`menu-item ${selectedUrl === group.pageUrl ? "is-active" : ""}`}
+                className={`menu-item ${selectedUrl === null ? "is-active" : ""}`}
                 onClick={() => {
-                  setSelectedUrl(group.pageUrl);
+                  setSelectedUrl(null);
                   setMenuOpen(false);
                 }}
               >
-                <span className="menu-label">
-                  <strong>{labelForUrl(group.pageUrl)}</strong>
-                  <small>{group.pageUrl}</small>
-                </span>
-                <span className="menu-count">{group.unread > 0 ? group.unread : group.total}</span>
+                <span>Home</span>
+                <span className="menu-count">{unreadFeed.length}</span>
               </button>
-            ))}
-          </div>
-          <div className="menu-footer">
-            <button
-              type="button"
-              className="drawer-action"
-              onClick={() => {
-                setSettingsOpen(true);
-                setMenuOpen(false);
-              }}
-            >
-              <span className="drawer-action-icon-wrap">
-                <GearIcon />
-              </span>
-              <span className="drawer-action-copy">
-                <strong>Settings</strong>
-              </span>
-            </button>
-            <button type="button" className="drawer-action" onClick={() => void signOut()}>
-              <span
-                className="profile-chip drawer-profile-chip"
-                title={displayEmail}
-                aria-label={displayEmail}
+
+              <div className="menu-list">
+                {urlGroups.map((group) => (
+                  <button
+                    type="button"
+                    key={group.pageUrl}
+                    className={`menu-item ${selectedUrl === group.pageUrl ? "is-active" : ""}`}
+                    onClick={() => {
+                      setSelectedUrl(group.pageUrl);
+                      setMenuOpen(false);
+                    }}
+                  >
+                    <span className="menu-label">
+                      <strong>{labelForUrl(group.pageUrl)}</strong>
+                      <small>{group.pageUrl}</small>
+                    </span>
+                    <span className="menu-count">{group.unread > 0 ? group.unread : group.total}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="menu-footer">
+              <button
+                type="button"
+                className="drawer-action"
+                onClick={() => {
+                  setSettingsOpen(true);
+                  setMenuOpen(false);
+                }}
               >
-                {avatarUrl ? (
-                  <img src={avatarUrl} alt="" className="profile-avatar" referrerPolicy="no-referrer" />
-                ) : (
-                  <span className="profile-fallback">
-                    {displayEmail.slice(0, 1).toUpperCase()}
-                  </span>
-                )}
-              </span>
-              <span className="drawer-action-copy">
-                <strong>Sign out</strong>
-                <small>{displayEmail}</small>
-              </span>
-            </button>
-          </div>
-        </aside>
+                <span className="drawer-action-icon-wrap">
+                  <GearIcon />
+                </span>
+                <span className="drawer-action-copy">
+                  <strong>Settings</strong>
+                </span>
+              </button>
+              <button type="button" className="drawer-action" onClick={() => void signOut()}>
+                <span
+                  className="profile-chip drawer-profile-chip"
+                  title={displayEmail}
+                  aria-label={displayEmail}
+                >
+                  {avatarUrl ? (
+                    <img src={avatarUrl} alt="" className="profile-avatar" referrerPolicy="no-referrer" />
+                  ) : (
+                    <span className="profile-fallback">
+                      {displayEmail.slice(0, 1).toUpperCase()}
+                    </span>
+                  )}
+                </span>
+                <span className="drawer-action-copy">
+                  <strong>Sign out</strong>
+                  <small>{displayEmail}</small>
+                </span>
+              </button>
+            </div>
+          </aside>
         </>
       ) : null}
 
