@@ -92,6 +92,11 @@ function App() {
 
   const sessionEmail = session?.user.email?.toLowerCase() ?? "";
   const isAuthorizedModerator = sessionEmail === moderatorEmail;
+  const avatarUrl =
+    session?.user.user_metadata?.avatar_url
+    ?? session?.user.identities?.find((identity) => identity.provider === "google")?.identity_data?.avatar_url
+    ?? null;
+  const displayEmail = session?.user.email ?? moderatorEmail;
 
   useEffect(() => {
     portalSupabase.auth.getSession().then(({ data }) => {
@@ -342,9 +347,25 @@ function App() {
           <p>{currentSubtitle}</p>
         </div>
 
-        <button type="button" className="signout-button" onClick={() => void signOut()}>
-          Sign out
-        </button>
+        <div className="profile-controls">
+          <button
+            type="button"
+            className="profile-chip"
+            title={displayEmail}
+            aria-label={displayEmail}
+          >
+            {avatarUrl ? (
+              <img src={avatarUrl} alt="" className="profile-avatar" referrerPolicy="no-referrer" />
+            ) : (
+              <span className="profile-fallback">
+                {displayEmail.slice(0, 1).toUpperCase()}
+              </span>
+            )}
+          </button>
+          <button type="button" className="signout-button" onClick={() => void signOut()}>
+            Sign out
+          </button>
+        </div>
       </header>
 
       {menuOpen ? (
