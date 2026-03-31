@@ -45,6 +45,7 @@ Deno.serve(async (request) => {
     title?: string;
     body?: string;
     url?: string;
+    tag?: string;
   };
 
   try {
@@ -60,10 +61,10 @@ Deno.serve(async (request) => {
   webpush.setVapidDetails(vapidSubject, vapidPublicKey, vapidPrivateKey);
 
   const notificationPayload = JSON.stringify({
-    title: payload.title ?? "Interactive Maths",
+    title: payload.title ?? "DiscussIt Moderator",
     body: payload.body ?? "Push notifications are working.",
-    url: payload.url ?? "https://interactive-maths.vercel.app/",
-    tag: "interactive-maths-test-push",
+    url: payload.url ?? "https://discussit.app/",
+    tag: payload.tag ?? "discussit-moderator-test-push",
   });
 
   try {
