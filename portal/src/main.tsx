@@ -419,7 +419,7 @@ function App() {
           <button type="button" className="menu-backdrop" aria-label="Close menu" onClick={() => setMenuOpen(false)} />
           <aside className="menu-sheet">
             <div className="menu-sheet-header">
-              <strong>URLs</strong>
+              <span />
               <button type="button" className="menu-close" onClick={() => setMenuOpen(false)}>
                 ✕
               </button>
