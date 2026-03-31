@@ -24,6 +24,49 @@ button {
   background: #111111;
 }
 
+.portal-auth-shell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+}
+
+.auth-card {
+  width: min(100%, 420px);
+  display: grid;
+  gap: 12px;
+  padding: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 18px;
+  background: #171717;
+}
+
+.auth-card h1,
+.auth-card p {
+  margin: 0;
+}
+
+.auth-card p {
+  color: #9ca3af;
+  line-height: 1.5;
+}
+
+.auth-button {
+  width: fit-content;
+  padding: 12px 16px;
+  border: 0;
+  border-radius: 12px;
+  background: #fde047;
+  color: #111111;
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.auth-button-secondary {
+  background: #2b2b2b;
+  color: #fde047;
+}
+
 .portal-header {
   position: sticky;
   top: 0;
@@ -50,6 +93,17 @@ button {
   background: transparent;
   color: #fde047;
   cursor: pointer;
+}
+
+.signout-button {
+  width: fit-content;
+  padding: 10px 14px;
+  border: 1px solid rgba(250, 204, 21, 0.35);
+  border-radius: 10px;
+  background: transparent;
+  color: #fde047;
+  cursor: pointer;
+  white-space: nowrap;
 }
 
 .menu-button {

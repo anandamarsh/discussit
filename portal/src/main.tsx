@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import ReactDOM from "react-dom/client";
 import { portalSupabase } from "./supabase";
 import "./styles.css";
+import type { Session } from "@supabase/supabase-js";
 
 const isLocalhost =
   typeof window !== "undefined"
@@ -24,6 +25,8 @@ type FeedItem = {
   likes: number;
   dislikes: number;
 };
+
+const moderatorEmail = "amarsh.anand@gmail.com";
 
 function formatTimestamp(value: string) {
   const date = new Date(value);
@@ -67,12 +70,38 @@ function hydrateItem(item: {
 }
 
 function App() {
+  const [session, setSession] = useState<Session | null>(null);
+  const [authReady, setAuthReady] = useState(false);
   const [feed, setFeed] = useState<FeedItem[]>([]);
   const [menuOpen, setMenuOpen] = useState(false);
   const [selectedUrl, setSelectedUrl] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<FeedItem | null>(null);
 
+  const sessionEmail = session?.user.email?.toLowerCase() ?? "";
+  const isAuthorizedModerator = sessionEmail === moderatorEmail;
+
   useEffect(() => {
+    portalSupabase.auth.getSession().then(({ data }) => {
+      setSession(data.session);
+      setAuthReady(true);
+    });
+
+    const {
+      data: { subscription },
+    } = portalSupabase.auth.onAuthStateChange((_event, nextSession) => {
+      setSession(nextSession);
+      setAuthReady(true);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    if (!isAuthorizedModerator) {
+      setFeed([]);
+      return;
+    }
+
     let active = true;
 
     const loadComments = async () => {
@@ -122,7 +151,7 @@ function App() {
       active = false;
       void portalSupabase.removeChannel(channel);
     };
-  }, []);
+  }, [isAuthorizedModerator]);
 
   const unreadFeed = useMemo(() => feed.filter((item) => item.status === "Unread"), [feed]);
 
@@ -170,6 +199,66 @@ function App() {
     setPendingDelete(null);
   };
 
+  const signIn = async () => {
+    await portalSupabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo: window.location.origin,
+      },
+    });
+  };
+
+  const signOut = async () => {
+    await portalSupabase.auth.signOut();
+    setMenuOpen(false);
+    setPendingDelete(null);
+    setSelectedUrl(null);
+  };
+
+  if (!authReady) {
+    return (
+      <main className="portal-shell portal-auth-shell">
+        <section className="auth-card">
+          <p className="portal-kicker">Moderator</p>
+          <h1>Checking session...</h1>
+        </section>
+      </main>
+    );
+  }
+
+  if (!session) {
+    return (
+      <main className="portal-shell portal-auth-shell">
+        <section className="auth-card">
+          <p className="portal-kicker">Moderator</p>
+          <h1>Sign in to moderate comments</h1>
+          <p>Use your Google account to open the moderator portal.</p>
+          <button type="button" className="auth-button" onClick={() => void signIn()}>
+            Continue with Google
+          </button>
+        </section>
+      </main>
+    );
+  }
+
+  if (!isAuthorizedModerator) {
+    return (
+      <main className="portal-shell portal-auth-shell">
+        <section className="auth-card">
+          <p className="portal-kicker">Moderator</p>
+          <h1>Access denied</h1>
+          <p>
+            Signed in as <strong>{session.user.email ?? "unknown account"}</strong>.
+          </p>
+          <p>Only {moderatorEmail} can use this portal.</p>
+          <button type="button" className="auth-button auth-button-secondary" onClick={() => void signOut()}>
+            Sign out
+          </button>
+        </section>
+      </main>
+    );
+  }
+
   return (
     <main className="portal-shell">
       <header className="portal-header">
@@ -189,6 +278,10 @@ function App() {
           <h1>{currentTitle}</h1>
           <p>{currentSubtitle}</p>
         </div>
+
+        <button type="button" className="signout-button" onClick={() => void signOut()}>
+          Sign out
+        </button>
       </header>
 
       {menuOpen ? (
