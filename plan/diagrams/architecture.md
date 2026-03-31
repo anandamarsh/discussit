@@ -1,0 +1,125 @@
+# System Architecture
+
+## High-Level Overview
+
+```
+┌────────────────────────────────────────────────────────┐
+│  Child App (e.g. maths-distance-calculator.vercel.app) │
+│                                                        │
+│  <script src="discussit-widget.vercel.app/embed.js"    │
+│          data-theme="dark" />                          │
+│  ┌──────────────────────────────────────────────────┐  │
+│  │  Widget iframe (discussit-widget.vercel.app)     │  │
+│  │  Shows comments, post form, threaded replies     │  │
+│  └──────────────────────────────────────────────────┘  │
+└────────────────────────────────────────────────────────┘
+          │
+          │  READS: Supabase client (anon key + RLS)
+          │  WRITES: Edge Function (Origin check + rate limit)
+          │
+          ▼
+┌──────────────────────────────────────────────────────┐
+│  Supabase (free tier)                                │
+│                                                      │
+│  ┌─ Postgres ─────────────────────────────────────┐  │
+│  │  sites, pages, comments, mod_read_status,      │  │
+│  │  push_subscriptions, rate_limits               │  │
+│  │  Row Level Security (RLS) enforces all rules   │  │
+│  └────────────────────────────────────────────────┘  │
+│                                                      │
+│  ┌─ Edge Function: post-comment ──────────────────┐  │
+│  │  1. Check Origin header                        │  │
+│  │  2. Check rate limit (5/min per IP)            │  │
+│  │  3. Validate domain against sites table        │  │
+│  │  4. Write comment to Postgres                  │  │
+│  │  5. Send push notification to moderator        │  │
+│  └────────────────────────────────────────────────┘  │
+│                                                      │
+│  ┌─ Supabase Auth ────────────────────────────────┐  │
+│  │  Single admin user. Sign-ups disabled.         │  │
+│  │  JWT issued on login, verified by RLS.         │  │
+│  └────────────────────────────────────────────────┘  │
+└──────────────────────────────────────────────────────┘
+          ▲
+          │  Authenticated (Supabase JWT)
+          │
+┌──────────────────────────────────────────────────────┐
+│  Mod Portal PWA (discussit-portal.vercel.app)        │
+│  - Login via Supabase Auth                           │
+│  - View comments (read/unread)                       │
+│  - Delete comments                                   │
+│  - Manage allowed sites                              │
+│  - Push notification subscription                    │
+│  - Mobile-first, installable                         │
+└──────────────────────────────────────────────────────┘
+```
+
+## Deployment Topology
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                        VERCEL (free tier)                    │
+│                                                             │
+│  ┌─────────────────────────┐  ┌──────────────────────────┐  │
+│  │  discussit-widget       │  │  discussit-portal        │  │
+│  │  Static Preact app      │  │  Static React PWA        │  │
+│  │                         │  │                          │  │
+│  │  /embed.js              │  │  /                       │  │
+│  │  /widget?url=...&theme= │  │  /feed                   │  │
+│  │                         │  │  /sites                  │  │
+│  │  Auto-deployed on push  │  │  /settings               │  │
+│  │  to main branch         │  │                          │  │
+│  └─────────────────────────┘  └──────────────────────────┘  │
+│                                                             │
+│  Optional later: discuss.sitnstudy.com custom domain        │
+└─────────────────────────────────────────────────────────────┘
+                    │                      │
+                    │  anon key            │  JWT
+                    ▼                      ▼
+┌─────────────────────────────────────────────────────────────┐
+│                     SUPABASE (free tier)                     │
+│                                                             │
+│  ┌──────────────┐  ┌───────────────┐  ┌──────────────────┐  │
+│  │  PostgreSQL   │  │  Edge Fns     │  │  Auth            │  │
+│  │  500MB        │  │  500K inv/mo  │  │  50K MAU         │  │
+│  │  50K rows     │  │               │  │  sign-ups off    │  │
+│  └──────────────┘  └───────────────┘  └──────────────────┘  │
+└─────────────────────────────────────────────────────────────┘
+```
+
+## Iframe Embedding Flow
+
+```
+┌─ Browser ──────────────────────────────────────────────────┐
+│                                                            │
+│  ┌─ interactive-maths.vercel.app (shell) ───────────────┐  │
+│  │                                                      │  │
+│  │  ┌─ iframe: maths-distance-calculator.vercel.app ─┐  │  │
+│  │  │                                                │  │  │
+│  │  │  Game content here                             │  │  │
+│  │  │                                                │  │  │
+│  │  │  ┌─ embed.js runs here ─────────────────────┐  │  │  │
+│  │  │  │ reads window.location.href               │  │  │  │
+│  │  │  │ = maths-distance-calculator.vercel.app   │  │  │  │
+│  │  │  │ creates widget iframe below ▼            │  │  │  │
+│  │  │  └──────────────────────────────────────────┘  │  │  │
+│  │  │                                                │  │  │
+│  │  │  ┌─ iframe: discussit-widget.vercel.app ────┐  │  │  │
+│  │  │  │ ?url=maths-distance-calculator.vercel.app│  │  │  │
+│  │  │  │ &theme=dark                              │  │  │  │
+│  │  │  │                                          │  │  │  │
+│  │  │  │ Comment thread + post form               │  │  │  │
+│  │  │  │                                          │  │  │  │
+│  │  │  │ READS  → Supabase (anon key + RLS)       │  │  │  │
+│  │  │  │ WRITES → Edge Function (Origin checked)  │  │  │  │
+│  │  │  │                                          │  │  │  │
+│  │  │  │ postMessage ──→ embed.js (height sync)   │  │  │  │
+│  │  │  └──────────────────────────────────────────┘  │  │  │
+│  │  │                                                │  │  │
+│  │  └────────────────────────────────────────────────┘  │  │
+│  └──────────────────────────────────────────────────────┘  │
+│                                                            │
+│  Also works when child app is visited directly             │
+│  (not inside the shell) — same embed.js, same flow         │
+└────────────────────────────────────────────────────────────┘
+```
