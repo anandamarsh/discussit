@@ -72,3 +72,55 @@ self.addEventListener("fetch", (event) => {
     );
   }
 });
+
+self.addEventListener("push", (event) => {
+  let payload = {};
+
+  if (event.data) {
+    try {
+      payload = event.data.json();
+    } catch {
+      payload = { body: event.data.text() };
+    }
+  }
+
+  const data = typeof payload === "object" && payload !== null ? payload : {};
+  const title = typeof data.title === "string" && data.title.trim().length > 0 ? data.title : "DiscussIt";
+  const body =
+    typeof data.body === "string" && data.body.trim().length > 0
+      ? data.body
+      : "You have a new moderator notification.";
+  const url = typeof data.url === "string" && data.url.trim().length > 0 ? data.url : "/";
+  const tag = typeof data.tag === "string" && data.tag.trim().length > 0 ? data.tag : "discussit-notification";
+
+  event.waitUntil(
+    self.registration.showNotification(title, {
+      body,
+      icon: "/icons/discussit-icon-1024.png",
+      badge: "/icons/discussit-icon.svg",
+      tag,
+      data: { url },
+    }),
+  );
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const targetUrl = event.notification.data?.url || "/";
+
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clients) => {
+      for (const client of clients) {
+        if ("focus" in client && client.url === targetUrl) {
+          return client.focus();
+        }
+      }
+
+      if (self.clients.openWindow) {
+        return self.clients.openWindow(targetUrl);
+      }
+
+      return undefined;
+    }),
+  );
+});
