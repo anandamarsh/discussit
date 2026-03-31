@@ -630,11 +630,14 @@ button {
   .comment-topline {
     display: grid;
     justify-content: stretch;
+    padding-right: 92px;
   }
 
   .comment-actions {
-    position: static;
-    margin-top: 2px;
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    margin-top: 0;
     display: flex;
     justify-content: flex-end;
     align-items: center;
