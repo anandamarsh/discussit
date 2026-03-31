@@ -662,6 +662,18 @@ button {
     display: none;
   }
 
+  .comment-meta {
+    flex-wrap: nowrap;
+    gap: 8px;
+    overflow-x: auto;
+  }
+
+  .reaction-chip {
+    gap: 4px;
+    padding: 0.25rem 0.55rem;
+    white-space: nowrap;
+  }
+
   .comment-actions {
     gap: 8px;
   }
