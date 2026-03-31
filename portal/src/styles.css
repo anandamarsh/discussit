@@ -387,7 +387,7 @@ button {
 
 .comment-body {
   margin: 0;
-  color: #d1d5db;
+  color: #fde047;
   line-height: 1.5;
 }
 
@@ -416,14 +416,14 @@ button {
 }
 
 .icon-action.is-confirm {
-  background: #fde047;
-  color: #111111;
+  background: #2b2b2b;
+  color: #fde047;
 }
 
 .icon-action.is-danger {
   background: #2b2b2b;
-  color: #fca5a5;
-  font-size: 1.45rem;
+  color: #fde047;
+  font-size: 1.35rem;
 }
 
 .confirm-overlay {

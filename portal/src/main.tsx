@@ -42,7 +42,8 @@ function formatTimestamp(value: string) {
 function labelForUrl(pageUrl: string) {
   try {
     const url = new URL(pageUrl);
-    return `${url.hostname}${url.pathname === "/" ? "" : url.pathname}`;
+    const hostname = url.hostname.replace(/\.vercel\.app$/, "");
+    return `${hostname}${url.pathname === "/" ? "" : url.pathname}`;
   } catch {
     return pageUrl;
   }
@@ -485,18 +486,6 @@ function App() {
             </div>
 
             <div className="menu-main">
-              <button
-                type="button"
-                className={`menu-item ${selectedUrl === null ? "is-active" : ""}`}
-                onClick={() => {
-                  chooseUrl(null);
-                  setMenuOpen(false);
-                }}
-              >
-                <span>Home</span>
-                <span className="menu-count">{unreadFeed.length}</span>
-              </button>
-
               <div className="menu-list">
                 {urlGroups.map((group) => (
                   <button
