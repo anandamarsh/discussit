@@ -185,6 +185,23 @@ function App() {
 
     void loadComments();
 
+    const intervalId = window.setInterval(() => {
+      void loadComments();
+    }, 15000);
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        void loadComments();
+      }
+    };
+
+    const handleFocus = () => {
+      void loadComments();
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("focus", handleFocus);
+
     const channel = portalSupabase
       .channel("comments-feed")
       .on(
@@ -215,6 +232,9 @@ function App() {
 
     return () => {
       active = false;
+      window.clearInterval(intervalId);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("focus", handleFocus);
       void portalSupabase.removeChannel(channel);
     };
   }, [isAuthorizedModerator]);

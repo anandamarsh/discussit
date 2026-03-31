@@ -28,3 +28,28 @@ export async function postComment(input: {
     dislikes: number;
   };
 }
+
+export async function updateCommentReactions(input: {
+  commentId: string;
+  pageUrl: string;
+  likes: number;
+  dislikes: number;
+  reaction: "like" | "dislike" | "clear";
+}) {
+  const { data, error } = await widgetSupabase.functions.invoke("react-comment", {
+    body: input,
+  });
+
+  if (error) {
+    throw new Error(error.message || "Failed to update comment reaction.");
+  }
+
+  return data as {
+    id: string;
+    authorName: string;
+    body: string;
+    createdAt: string;
+    likes: number;
+    dislikes: number;
+  };
+}

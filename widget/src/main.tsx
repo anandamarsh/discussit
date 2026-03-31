@@ -1,6 +1,6 @@
 import { render } from "preact";
 import { useEffect, useMemo, useState } from "preact/hooks";
-import { postComment, widgetSupabase } from "./supabase";
+import { postComment, updateCommentReactions, widgetSupabase } from "./supabase";
 import "./styles.css";
 
 type CommentItem = {
@@ -139,7 +139,29 @@ function App() {
 
     void loadComments();
 
-    return () => controller.abort();
+    const intervalId = window.setInterval(() => {
+      void loadComments();
+    }, 15000);
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        void loadComments();
+      }
+    };
+
+    const handleFocus = () => {
+      void loadComments();
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("focus", handleFocus);
+
+    return () => {
+      controller.abort();
+      window.clearInterval(intervalId);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("focus", handleFocus);
+    };
   }, [pageUrl]);
 
   useEffect(() => {
@@ -334,33 +356,30 @@ function App() {
       [commentId]: finalReaction,
     }));
 
-    void widgetSupabase
-      .from("comments")
-      .update({
-        likes,
-        dislikes,
-      })
-      .eq("id", commentId)
-      .select("id, author_name, body, created_at, likes, dislikes")
-      .single()
-      .then(({ data, error }) => {
-        if (!error && data) {
+    void updateCommentReactions({
+      commentId,
+      pageUrl,
+      likes,
+      dislikes,
+      reaction: finalReaction ?? "clear",
+    }).then((data) => {
+      if (data) {
           setComments((current) =>
             current.map((comment) =>
               comment.id === data.id
                 ? {
-                    id: data.id,
-                    authorName: data.author_name,
-                    body: data.body,
-                    createdAt: data.created_at,
-                    likes: data.likes,
-                    dislikes: data.dislikes,
-                  }
+                  id: data.id,
+                  authorName: data.authorName,
+                  body: data.body,
+                  createdAt: data.createdAt,
+                  likes: data.likes,
+                  dislikes: data.dislikes,
+                }
                 : comment,
             ),
           );
-        }
-      });
+      }
+    });
   };
 
   return (
@@ -435,13 +454,6 @@ function App() {
               </div>
             </article>
           ))}
-          {!composerOpen ? (
-            <div class="thread-actions">
-              <button type="button" class="thread-new-comment" onClick={() => setComposerOpen(true)}>
-                New comment
-              </button>
-            </div>
-          ) : null}
         </section>
       </div>
     </main>
