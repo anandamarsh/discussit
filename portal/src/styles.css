@@ -134,6 +134,14 @@ button {
   cursor: pointer;
 }
 
+.menu-close {
+  width: 48px;
+  height: 48px;
+  border-radius: 999px;
+  font-size: 1.5rem;
+  font-weight: 900;
+}
+
 .profile-chip {
   width: 42px;
   height: 42px;
@@ -353,6 +361,7 @@ button {
   display: grid;
   gap: 10px;
   padding: 16px;
+  padding-right: 112px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   background: #111111;
 }
@@ -372,7 +381,7 @@ button {
 }
 
 .comment-topline strong {
-  color: #f9fafb;
+  color: #fde047;
 }
 
 .comment-topline span,
@@ -380,9 +389,9 @@ button {
   color: #9ca3af;
 }
 
-.comment-status {
-  color: #9ca3af;
-  font-size: 0.84rem;
+.comment-topline {
+  display: grid;
+  justify-content: stretch;
 }
 
 .comment-body {
@@ -398,7 +407,11 @@ button {
 }
 
 .comment-actions {
+  position: absolute;
+  top: 16px;
+  right: 16px;
   justify-content: flex-end;
+  align-items: center;
   gap: 10px;
 }
 
@@ -627,20 +640,7 @@ button {
     display: none;
   }
 
-  .comment-topline {
-    display: grid;
-    justify-content: stretch;
-    padding-right: 92px;
-  }
-
   .comment-actions {
-    position: absolute;
-    top: 16px;
-    right: 16px;
-    margin-top: 0;
-    display: flex;
-    justify-content: flex-end;
-    align-items: center;
     gap: 8px;
   }
 

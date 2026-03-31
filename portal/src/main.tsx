@@ -558,7 +558,6 @@ function App() {
                   <strong>{item.authorName}</strong>
                   <span>{item.authorEmail || "No email provided"}</span>
                 </div>
-                <span className="comment-status">{item.status === "Unread" ? "Needs review" : "Reviewed"}</span>
               </div>
 
               <p className="comment-body">{item.body}</p>
