@@ -40,6 +40,7 @@ The current local setup uses Supabase directly.
 - Embed comments in multiple apps through an iframe
 - Persistent comments in Supabase
 - Live updates through Supabase Realtime
+- Moderator web push notifications
 - Simple moderator workflow by URL
 - Per-comment likes and dislikes
 - Installable moderator portal PWA
