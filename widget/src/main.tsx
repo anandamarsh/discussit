@@ -266,7 +266,24 @@ function App() {
       authorEmail: email,
       body,
     })
-      .then(() => {
+      .then((createdComment) => {
+        setComments((current) => {
+          if (current.some((comment) => comment.id === createdComment.id)) {
+            return current;
+          }
+
+          return [
+            ...current,
+            {
+              id: createdComment.id,
+              authorName: createdComment.authorName,
+              body: createdComment.body,
+              createdAt: createdComment.createdAt,
+              likes: createdComment.likes,
+              dislikes: createdComment.dislikes,
+            },
+          ];
+        });
         setBody("");
         setComposerOpen(false);
       })

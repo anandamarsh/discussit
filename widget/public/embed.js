@@ -4,7 +4,15 @@
     return;
   }
 
-  const widgetOrigin = currentScript.getAttribute("data-discussit-origin") || "http://localhost:5001";
+  const scriptOrigin = (() => {
+    try {
+      return new URL(currentScript.src, window.location.href).origin;
+    } catch {
+      return "http://localhost:5001";
+    }
+  })();
+
+  const widgetOrigin = currentScript.getAttribute("data-discussit-origin") || scriptOrigin;
   const theme = currentScript.getAttribute("data-theme") || "light";
   const url = encodeURIComponent(window.location.href);
   const iframe = document.createElement("iframe");
