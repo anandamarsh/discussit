@@ -179,29 +179,12 @@ button {
   border-radius: 999px;
 }
 
-.portal-header-copy h1,
-.portal-header-copy p,
-.portal-kicker {
+.portal-header-copy h1 {
   margin: 0;
 }
 
-.portal-kicker {
-  color: #fde047;
-  font-size: 0.76rem;
-  font-weight: 900;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-}
-
 .portal-header-copy h1 {
-  margin-top: 4px;
   font-size: 1.2rem;
-}
-
-.portal-header-copy p {
-  margin-top: 4px;
-  color: #9ca3af;
-  font-size: 0.92rem;
 }
 
 .menu-sheet {

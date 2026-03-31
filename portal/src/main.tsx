@@ -247,10 +247,7 @@ function App() {
       .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
   }, [feed, selectedUrl, unreadFeed]);
 
-  const currentTitle = selectedUrl ? labelForUrl(selectedUrl) : "Moderator";
-  const currentSubtitle = selectedUrl
-    ? "All comments for this URL"
-    : "Comments that need attention";
+  const currentTitle = selectedUrl ? labelForUrl(selectedUrl) : "Moderator Panel";
   const notificationsEnabled = notificationPreference === "on";
 
   const markRead = async (commentId: string) => {
@@ -412,9 +409,7 @@ function App() {
         </button>
 
         <div className="portal-header-copy">
-          <p className="portal-kicker">Moderator</p>
           <h1>{currentTitle}</h1>
-          <p>{currentSubtitle}</p>
         </div>
         <div className="portal-header-spacer" />
       </header>
