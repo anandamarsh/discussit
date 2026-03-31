@@ -66,7 +66,7 @@ Key patterns:
 
 ## Widget UI
 
-See: [mockups/widget.md](mockups/widget.md)
+See: [mockups/widget.html](mockups/widget.html) (open in browser to view)
 
 States covered:
 - Comment thread with 1-level replies
@@ -85,14 +85,15 @@ Key behaviors:
 
 ## Moderator Portal UI
 
-See: [mockups/portal.md](mockups/portal.md)
+See: [mockups/portal.html](mockups/portal.html) (open in browser to view)
 
 Screens:
 - **Login** — email/password via Supabase Auth
 - **Feed** — all comments, filterable by All/Unread/Site. Shows email. Mark read/delete buttons. Swipe-to-delete on mobile.
-- **Detail** — tap to expand full thread with all replies
+- **Delete confirmation** — modal with comment preview
 - **Sites** — manage allowed domains, see comment counts
 - **Settings** — push notification toggle, test push, sign out
+- **Push notification** — how the notification looks on your phone
 
 Mobile-first, installable as PWA.
 
@@ -105,12 +106,12 @@ discussit/
 ├── plan/                            # This planning folder
 │   ├── plan.md                      # This file
 │   ├── diagrams/
-│   │   ├── architecture.md          # System architecture diagrams
-│   │   ├── security.md              # Security model diagrams
-│   │   └── data-model.md            # ER diagram + SQL schema
+│   │   ├── architecture.md          # System architecture (Mermaid diagrams)
+│   │   ├── security.md              # Security model (Mermaid diagrams)
+│   │   └── data-model.md            # ER diagram + SQL schema (Mermaid)
 │   └── mockups/
-│       ├── widget.md                # Widget UI mockups
-│       └── portal.md                # Mod portal UI mockups
+│       ├── widget.html              # Widget UI mockup (open in browser)
+│       └── portal.html              # Mod portal UI mockup (open in browser)
 │
 ├── widget/                          # Embeddable comment UI (Preact)
 │   ├── src/

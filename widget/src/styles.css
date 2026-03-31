@@ -1,0 +1,187 @@
+:root {
+  color-scheme: dark;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: #e5e7eb;
+  background: transparent;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: transparent;
+}
+
+.widget-shell {
+  min-height: 100vh;
+  padding: 0;
+  background: #111111;
+}
+
+.widget-card {
+  padding: 16px 18px 24px;
+  background: #111111;
+}
+
+.comment-topline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.comment-form,
+.comment-card {
+  display: grid;
+  gap: 10px;
+}
+
+.comment-form {
+  margin: 0;
+  padding: 0 0 18px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.identity-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.comment-form input,
+.comment-form textarea {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 8px;
+  background: #171717;
+  font: inherit;
+  color: #f3f4f6;
+}
+
+.comment-form input::placeholder,
+.comment-form textarea::placeholder {
+  color: #9ca3af;
+}
+
+.comment-form textarea {
+  min-height: 104px;
+  resize: vertical;
+}
+
+.comment-form input:focus,
+.comment-form textarea:focus {
+  outline: none;
+  border-color: rgba(250, 204, 21, 0.5);
+  box-shadow: 0 0 0 2px rgba(250, 204, 21, 0.12);
+}
+
+.honeypot {
+  display: none;
+}
+
+.form-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.comment-form button {
+  width: fit-content;
+  padding: 10px 16px;
+  border: 0;
+  border-radius: 8px;
+  background: #facc15;
+  color: #111111;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.comment-form-secondary {
+  background: transparent;
+  color: #facc15;
+  border: 1px solid rgba(250, 204, 21, 0.38);
+}
+
+.thread-list {
+  margin-top: 18px;
+  display: grid;
+  gap: 14px;
+}
+
+.thread-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.thread-new-comment {
+  width: fit-content;
+  padding: 10px 16px;
+  border: 1px solid rgba(250, 204, 21, 0.55);
+  border-radius: 999px;
+  background: rgba(250, 204, 21, 0.12);
+  color: #fde047;
+  font: inherit;
+  font-size: 0.74rem;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.comment-card {
+  padding: 0 0 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.comment-topline strong {
+  color: #f9fafb;
+  font-size: 0.96rem;
+}
+
+.comment-topline span {
+  color: #9ca3af;
+  font-size: 0.9rem;
+}
+
+.comment-card p {
+  margin: 0;
+  color: #d1d5db;
+  line-height: 1.5;
+}
+
+.reaction-row {
+  display: flex;
+  gap: 10px;
+}
+
+.reaction-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  background: #171717;
+  color: #d1d5db;
+  font: inherit;
+  cursor: pointer;
+}
+
+.reaction-button.is-active {
+  border-color: rgba(250, 204, 21, 0.55);
+  color: #facc15;
+}
+
+@media (max-width: 560px) {
+  .widget-card {
+    padding: 12px 14px 18px;
+  }
+
+  .identity-row {
+    grid-template-columns: 1fr;
+  }
+}

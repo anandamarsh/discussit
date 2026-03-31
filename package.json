@@ -1,0 +1,20 @@
+{
+  "name": "discussit",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "widget",
+    "portal"
+  ],
+  "scripts": {
+    "dev": "npm run dev:reset-ports && concurrently -k \"npm run dev:widget\" \"npm run dev:portal\"",
+    "dev:reset-ports": "sh -c 'lsof -ti tcp:5001 | xargs -r kill -9; lsof -ti tcp:5002 | xargs -r kill -9'",
+    "dev:widget": "npm run dev --workspace widget",
+    "dev:portal": "npm run dev --workspace portal",
+    "build": "npm run build --workspace widget && npm run build --workspace portal"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1",
+    "supabase": "^2.84.5"
+  }
+}

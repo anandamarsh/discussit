@@ -1,0 +1,786 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DiscussIt Mod Portal — UI Mockup</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0a0a0a; color: #e2e8f0; padding: 20px; }
+  h1 { font-size: 14px; color: #64748b; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 1px; }
+  .mockup-label { font-size: 11px; color: #f59e0b; margin: 40px 0 12px; text-transform: uppercase; letter-spacing: 2px; font-weight: 600; }
+  .mockup-label:first-of-type { margin-top: 16px; }
+
+  .phone {
+    width: 375px;
+    background: #111;
+    border-radius: 24px;
+    overflow: hidden;
+    border: 2px solid #333;
+    margin-bottom: 40px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+  }
+
+  /* Status bar */
+  .status-bar {
+    height: 44px;
+    background: #111;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 20px;
+    font-size: 12px;
+    font-weight: 600;
+  }
+  .status-bar .time { }
+  .status-bar .icons { display: flex; gap: 4px; }
+
+  /* App header */
+  .app-header {
+    padding: 12px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: #111;
+    border-bottom: 1px solid #222;
+  }
+  .app-header h2 { font-size: 20px; font-weight: 700; }
+  .bell {
+    width: 32px; height: 32px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px;
+    position: relative;
+  }
+  .bell-badge {
+    position: absolute; top: 0; right: 0;
+    background: #ef4444; color: #fff;
+    font-size: 9px; font-weight: 700;
+    width: 16px; height: 16px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+  }
+
+  /* Filters */
+  .filters {
+    display: flex;
+    gap: 8px;
+    padding: 12px 20px;
+    background: #111;
+  }
+  .filter-chip {
+    padding: 6px 16px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    border: 1px solid #333;
+    color: #94a3b8;
+    background: transparent;
+  }
+  .filter-chip.active {
+    background: #3b82f6;
+    color: #fff;
+    border-color: #3b82f6;
+  }
+
+  /* Comment card */
+  .feed { padding: 8px 16px; background: #111; }
+
+  .comment-card {
+    background: #1a1a1a;
+    border-radius: 12px;
+    padding: 16px;
+    margin-bottom: 10px;
+    border: 1px solid #222;
+    position: relative;
+  }
+  .comment-card.unread { border-left: 3px solid #3b82f6; }
+
+  .card-site {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    font-weight: 700;
+    margin-bottom: 8px;
+  }
+  .card-site.unread { color: #3b82f6; }
+  .card-site.read { color: #555; }
+
+  .unread-dot {
+    display: inline-block;
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: #3b82f6;
+    margin-right: 6px;
+    vertical-align: middle;
+  }
+
+  .card-author {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 4px;
+  }
+  .card-author .name { font-weight: 600; font-size: 14px; }
+  .card-author .time { color: #555; font-size: 12px; }
+  .card-author .read-badge { color: #555; font-size: 11px; }
+
+  .card-email { font-size: 12px; color: #666; margin-bottom: 8px; }
+
+  .card-reply-indicator {
+    font-size: 12px; color: #7c3aed; margin-bottom: 6px;
+  }
+
+  .card-body {
+    font-size: 14px;
+    line-height: 1.4;
+    color: #ccc;
+    margin-bottom: 12px;
+  }
+
+  .card-actions {
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
+  }
+  .card-btn {
+    padding: 6px 14px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    border: none;
+  }
+  .btn-read { background: #1e293b; color: #3b82f6; }
+  .btn-delete { background: #1c1917; color: #ef4444; }
+  .btn-mark-all {
+    display: block;
+    width: 100%;
+    padding: 12px;
+    background: #1e293b;
+    color: #3b82f6;
+    border: 1px solid #334155;
+    border-radius: 10px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    margin-top: 4px;
+  }
+
+  /* Tab bar */
+  .tab-bar {
+    display: flex;
+    background: #111;
+    border-top: 1px solid #222;
+    padding: 8px 0;
+  }
+  .tab {
+    flex: 1;
+    text-align: center;
+    padding: 8px;
+    font-size: 11px;
+    color: #555;
+    cursor: pointer;
+  }
+  .tab.active { color: #3b82f6; }
+  .tab-icon { font-size: 18px; display: block; margin-bottom: 2px; }
+
+  /* Login screen */
+  .login-screen {
+    padding: 80px 32px 40px;
+    text-align: center;
+    background: #111;
+    min-height: 700px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+  .login-screen h2 { font-size: 28px; margin-bottom: 4px; }
+  .login-screen .subtitle { color: #666; font-size: 15px; margin-bottom: 36px; }
+  .login-form { width: 100%; }
+  .login-form .form-group {
+    text-align: left;
+    margin-bottom: 16px;
+  }
+  .login-form label {
+    display: block;
+    font-size: 12px;
+    color: #888;
+    margin-bottom: 4px;
+    font-weight: 500;
+  }
+  .login-form input {
+    width: 100%;
+    background: #1a1a1a;
+    border: 1px solid #333;
+    border-radius: 10px;
+    padding: 12px 14px;
+    color: #e2e8f0;
+    font-size: 15px;
+    outline: none;
+  }
+  .login-form input:focus { border-color: #3b82f6; }
+  .signin-btn {
+    width: 100%;
+    padding: 14px;
+    background: #3b82f6;
+    color: #fff;
+    border: none;
+    border-radius: 10px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    margin-top: 8px;
+  }
+
+  /* Settings */
+  .settings-section {
+    padding: 20px;
+    background: #111;
+  }
+  .settings-group {
+    background: #1a1a1a;
+    border-radius: 12px;
+    padding: 16px;
+    margin-bottom: 16px;
+    border: 1px solid #222;
+  }
+  .settings-group h3 {
+    font-size: 12px;
+    color: #888;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 12px;
+  }
+  .settings-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 0;
+  }
+  .settings-row span { font-size: 15px; }
+  .toggle {
+    width: 44px; height: 24px;
+    background: #3b82f6;
+    border-radius: 12px;
+    position: relative;
+  }
+  .toggle::after {
+    content: '';
+    position: absolute;
+    width: 20px; height: 20px;
+    background: #fff;
+    border-radius: 50%;
+    top: 2px;
+    right: 2px;
+  }
+  .settings-btn {
+    width: 100%;
+    padding: 12px;
+    background: #1e293b;
+    color: #3b82f6;
+    border: 1px solid #334155;
+    border-radius: 8px;
+    font-size: 14px;
+    cursor: pointer;
+    margin-top: 8px;
+  }
+  .signout-btn {
+    width: 100%;
+    padding: 12px;
+    background: transparent;
+    color: #ef4444;
+    border: 1px solid #333;
+    border-radius: 8px;
+    font-size: 14px;
+    cursor: pointer;
+  }
+
+  /* Sites screen */
+  .site-card {
+    background: #1a1a1a;
+    border-radius: 12px;
+    padding: 16px;
+    margin-bottom: 10px;
+    border: 1px solid #222;
+  }
+  .site-name { font-weight: 600; font-size: 15px; margin-bottom: 2px; }
+  .site-domain { font-size: 13px; color: #666; margin-bottom: 4px; }
+  .site-count { font-size: 12px; color: #3b82f6; }
+
+  .add-site-card {
+    background: #1a1a1a;
+    border-radius: 12px;
+    padding: 16px;
+    border: 1px dashed #333;
+  }
+  .add-site-card h3 { font-size: 14px; margin-bottom: 12px; color: #888; }
+  .add-site-card input {
+    width: 100%;
+    background: #111;
+    border: 1px solid #333;
+    border-radius: 8px;
+    padding: 10px 12px;
+    color: #e2e8f0;
+    font-size: 14px;
+    margin-bottom: 8px;
+    outline: none;
+  }
+  .add-btn {
+    width: 100%;
+    padding: 10px;
+    background: #3b82f6;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    margin-top: 4px;
+  }
+
+  /* Delete confirmation */
+  .modal-overlay {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 32px;
+  }
+  .modal {
+    background: #1a1a1a;
+    border-radius: 16px;
+    padding: 24px;
+    width: 100%;
+    border: 1px solid #333;
+  }
+  .modal h3 { font-size: 17px; margin-bottom: 12px; }
+  .modal .preview { font-size: 14px; color: #999; margin-bottom: 4px; line-height: 1.4; }
+  .modal .note { font-size: 12px; color: #666; margin-bottom: 20px; margin-top: 12px; }
+  .modal-actions { display: flex; gap: 12px; }
+  .modal-actions button { flex: 1; padding: 12px; border-radius: 10px; font-size: 14px; font-weight: 600; cursor: pointer; border: none; }
+  .modal-cancel { background: #333; color: #e2e8f0; }
+  .modal-delete { background: #dc2626; color: #fff; }
+
+  /* Push notification */
+  .push-notif {
+    width: 375px;
+    background: #1a1a1a;
+    border-radius: 16px;
+    padding: 16px;
+    border: 1px solid #333;
+    margin-bottom: 32px;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.3);
+  }
+  .push-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+  .push-icon {
+    width: 20px; height: 20px;
+    background: #3b82f6;
+    border-radius: 4px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 10px;
+  }
+  .push-app { font-size: 12px; color: #888; }
+  .push-time { font-size: 12px; color: #555; margin-left: auto; }
+  .push-title { font-weight: 600; font-size: 14px; margin-bottom: 2px; }
+  .push-body { font-size: 13px; color: #aaa; line-height: 1.3; }
+
+  /* Swipe hint */
+  .swipe-card {
+    position: relative;
+    overflow: hidden;
+    display: flex;
+  }
+  .swipe-content {
+    flex: 1;
+    background: #1a1a1a;
+    border-radius: 12px;
+    padding: 16px;
+    border: 1px solid #222;
+    transform: translateX(-80px);
+    transition: transform 0.2s;
+  }
+  .swipe-action {
+    width: 80px;
+    background: #dc2626;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    border-radius: 0 12px 12px 0;
+    font-size: 12px;
+    font-weight: 600;
+    gap: 4px;
+  }
+
+  .phones-row { display: flex; gap: 24px; flex-wrap: wrap; }
+</style>
+</head>
+<body>
+
+<h1>DiscussIt Moderator Portal — UI Mockups</h1>
+
+<div class="phones-row">
+
+<!-- ===== LOGIN ===== -->
+<div>
+<div class="mockup-label">Login Screen</div>
+<div class="phone">
+  <div class="status-bar">
+    <span class="time">9:41</span>
+    <span class="icons">📶 🔋</span>
+  </div>
+  <div class="login-screen">
+    <h2>DiscussIt</h2>
+    <div class="subtitle">Moderator</div>
+    <div class="login-form">
+      <div class="form-group">
+        <label>Email</label>
+        <input type="email" value="amarsh.anand@gmail.com" />
+      </div>
+      <div class="form-group">
+        <label>Password</label>
+        <input type="password" value="••••••••" />
+      </div>
+      <button class="signin-btn">Sign In</button>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- ===== FEED: ALL ===== -->
+<div>
+<div class="mockup-label">Feed — All Comments</div>
+<div class="phone">
+  <div class="status-bar">
+    <span class="time">9:41</span>
+    <span class="icons">📶 🔋</span>
+  </div>
+  <div class="app-header">
+    <h2>DiscussIt</h2>
+    <div class="bell">🔔<div class="bell-badge">3</div></div>
+  </div>
+  <div class="filters">
+    <button class="filter-chip active">All</button>
+    <button class="filter-chip">Unread (3)</button>
+    <button class="filter-chip">Sites ▾</button>
+  </div>
+  <div class="feed">
+    <div class="comment-card unread">
+      <div class="card-site unread"><span class="unread-dot"></span>DISTANCE CALCULATOR</div>
+      <div class="card-author">
+        <span class="name">Alice</span>
+        <span class="time">· 2 min ago</span>
+      </div>
+      <div class="card-email">alice@school.edu</div>
+      <div class="card-body">"This game is amazing! I love how the dinosaur walks along the trail."</div>
+      <div class="card-actions">
+        <button class="card-btn btn-read">Mark read</button>
+        <button class="card-btn btn-delete">🗑️</button>
+      </div>
+    </div>
+
+    <div class="comment-card unread">
+      <div class="card-site unread"><span class="unread-dot"></span>DISTANCE CALCULATOR</div>
+      <div class="card-author">
+        <span class="name">Bob</span>
+        <span class="time">· 15 min ago</span>
+      </div>
+      <div class="card-email">bob@example.com</div>
+      <div class="card-reply-indicator">↩ Reply to Alice</div>
+      <div class="card-body">"I agree! Level 3 is tricky but the kids love the challenge."</div>
+      <div class="card-actions">
+        <button class="card-btn btn-read">Mark read</button>
+        <button class="card-btn btn-delete">🗑️</button>
+      </div>
+    </div>
+
+    <div class="comment-card">
+      <div class="card-site read">ANGLE EXPLORER</div>
+      <div class="card-author">
+        <span class="name">Charlie</span>
+        <span class="time">· 1h ago</span>
+        <span class="card-author read-badge">(read)</span>
+      </div>
+      <div class="card-email">charlie@school.org</div>
+      <div class="card-body">"How do I measure a reflex angle? The protractor only goes to 180."</div>
+      <div class="card-actions">
+        <button class="card-btn btn-delete">🗑️</button>
+      </div>
+    </div>
+
+    <div class="comment-card unread">
+      <div class="card-site unread"><span class="unread-dot"></span>INTERACTIVE MATHS</div>
+      <div class="card-author">
+        <span class="name">Diana</span>
+        <span class="time">· 2h ago</span>
+      </div>
+      <div class="card-email">diana@gmail.com</div>
+      <div class="card-body">"Can you add more games? My class loves these!"</div>
+      <div class="card-actions">
+        <button class="card-btn btn-read">Mark read</button>
+        <button class="card-btn btn-delete">🗑️</button>
+      </div>
+    </div>
+  </div>
+  <div class="tab-bar">
+    <div class="tab active"><span class="tab-icon">💬</span>Feed</div>
+    <div class="tab"><span class="tab-icon">🌐</span>Sites</div>
+    <div class="tab"><span class="tab-icon">⚙️</span>Settings</div>
+  </div>
+</div>
+</div>
+
+<!-- ===== FEED: UNREAD FILTER ===== -->
+<div>
+<div class="mockup-label">Feed — Unread Only</div>
+<div class="phone">
+  <div class="status-bar">
+    <span class="time">9:41</span>
+    <span class="icons">📶 🔋</span>
+  </div>
+  <div class="app-header">
+    <h2>DiscussIt</h2>
+    <div class="bell">🔔<div class="bell-badge">3</div></div>
+  </div>
+  <div class="filters">
+    <button class="filter-chip">All</button>
+    <button class="filter-chip active">Unread (3)</button>
+    <button class="filter-chip">Sites ▾</button>
+  </div>
+  <div class="feed">
+    <div class="comment-card unread">
+      <div class="card-site unread"><span class="unread-dot"></span>DISTANCE CALCULATOR</div>
+      <div class="card-author">
+        <span class="name">Alice</span>
+        <span class="time">· 2 min ago</span>
+      </div>
+      <div class="card-email">alice@school.edu</div>
+      <div class="card-body">"This game is amazing! I love how the dinosaur walks along the trail."</div>
+      <div class="card-actions">
+        <button class="card-btn btn-read">Mark read</button>
+        <button class="card-btn btn-delete">🗑️</button>
+      </div>
+    </div>
+
+    <div class="comment-card unread">
+      <div class="card-site unread"><span class="unread-dot"></span>DISTANCE CALCULATOR</div>
+      <div class="card-author">
+        <span class="name">Bob</span>
+        <span class="time">· 15 min ago</span>
+      </div>
+      <div class="card-email">bob@example.com</div>
+      <div class="card-reply-indicator">↩ Reply to Alice</div>
+      <div class="card-body">"I agree! Level 3 is tricky but fun."</div>
+      <div class="card-actions">
+        <button class="card-btn btn-read">Mark read</button>
+        <button class="card-btn btn-delete">🗑️</button>
+      </div>
+    </div>
+
+    <div class="comment-card unread">
+      <div class="card-site unread"><span class="unread-dot"></span>INTERACTIVE MATHS</div>
+      <div class="card-author">
+        <span class="name">Diana</span>
+        <span class="time">· 2h ago</span>
+      </div>
+      <div class="card-email">diana@gmail.com</div>
+      <div class="card-body">"Can you add more games? My class loves these!"</div>
+      <div class="card-actions">
+        <button class="card-btn btn-read">Mark read</button>
+        <button class="card-btn btn-delete">🗑️</button>
+      </div>
+    </div>
+
+    <div style="padding: 8px 16px;">
+      <button class="btn-mark-all">Mark All as Read</button>
+    </div>
+  </div>
+  <div class="tab-bar">
+    <div class="tab active"><span class="tab-icon">💬</span>Feed</div>
+    <div class="tab"><span class="tab-icon">🌐</span>Sites</div>
+    <div class="tab"><span class="tab-icon">⚙️</span>Settings</div>
+  </div>
+</div>
+</div>
+
+</div><!-- end phones-row -->
+
+<div class="phones-row">
+
+<!-- ===== SWIPE TO DELETE ===== -->
+<div>
+<div class="mockup-label">Swipe to Delete</div>
+<div class="phone">
+  <div class="status-bar">
+    <span class="time">9:41</span>
+    <span class="icons">📶 🔋</span>
+  </div>
+  <div class="app-header">
+    <h2>DiscussIt</h2>
+    <div class="bell">🔔</div>
+  </div>
+  <div class="feed">
+    <div class="comment-card">
+      <div class="card-site read">DISTANCE CALCULATOR</div>
+      <div class="card-author"><span class="name">Alice</span><span class="time">· 2m ago</span></div>
+      <div class="card-body">"This game is amazing!"</div>
+    </div>
+
+    <div class="swipe-card" style="margin-bottom: 10px;">
+      <div class="swipe-content">
+        <div class="card-site read">DISTANCE CALCULATOR</div>
+        <div class="card-author"><span class="name">Bob</span><span class="time">· 15m ago</span></div>
+        <div class="card-body">"I agree! Level 3 is tricky."</div>
+      </div>
+      <div class="swipe-action">🗑️<br/>Delete</div>
+    </div>
+
+    <div class="comment-card">
+      <div class="card-site read">ANGLE EXPLORER</div>
+      <div class="card-author"><span class="name">Charlie</span><span class="time">· 1h ago</span></div>
+      <div class="card-body">"How do I measure a reflex angle?"</div>
+    </div>
+  </div>
+  <div class="tab-bar">
+    <div class="tab active"><span class="tab-icon">💬</span>Feed</div>
+    <div class="tab"><span class="tab-icon">🌐</span>Sites</div>
+    <div class="tab"><span class="tab-icon">⚙️</span>Settings</div>
+  </div>
+</div>
+</div>
+
+<!-- ===== DELETE CONFIRMATION ===== -->
+<div>
+<div class="mockup-label">Delete Confirmation</div>
+<div class="phone" style="position: relative;">
+  <div class="status-bar">
+    <span class="time">9:41</span>
+    <span class="icons">📶 🔋</span>
+  </div>
+  <div class="app-header" style="opacity: 0.3;">
+    <h2>DiscussIt</h2>
+  </div>
+  <div class="feed" style="opacity: 0.3; min-height: 500px;"></div>
+  <div class="modal-overlay">
+    <div class="modal">
+      <h3>Delete this comment?</h3>
+      <div class="preview">"I agree! Level 3 is tricky but the kids love the challenge."</div>
+      <div class="preview" style="color: #666;">— Bob (bob@example.com)</div>
+      <div class="note">This will show as "[removed]" to users. Replies will remain visible.</div>
+      <div class="modal-actions">
+        <button class="modal-cancel">Cancel</button>
+        <button class="modal-delete">Delete</button>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- ===== SITES ===== -->
+<div>
+<div class="mockup-label">Sites Screen</div>
+<div class="phone">
+  <div class="status-bar">
+    <span class="time">9:41</span>
+    <span class="icons">📶 🔋</span>
+  </div>
+  <div class="app-header">
+    <h2>Sites</h2>
+  </div>
+  <div class="feed">
+    <div class="site-card">
+      <div class="site-name">Interactive Maths</div>
+      <div class="site-domain">interactive-maths.vercel.app</div>
+      <div class="site-count">12 comments</div>
+    </div>
+    <div class="site-card">
+      <div class="site-name">Distance Calculator</div>
+      <div class="site-domain">maths-distance-calculator.vercel.app</div>
+      <div class="site-count">8 comments</div>
+    </div>
+    <div class="site-card">
+      <div class="site-name">Angle Explorer</div>
+      <div class="site-domain">maths-angle-explorer.vercel.app</div>
+      <div class="site-count">3 comments</div>
+    </div>
+    <div class="add-site-card">
+      <h3>+ Add Site</h3>
+      <input placeholder="Domain (e.g. myapp.vercel.app)" />
+      <input placeholder="Display name" />
+      <button class="add-btn">Add Site</button>
+    </div>
+  </div>
+  <div class="tab-bar">
+    <div class="tab"><span class="tab-icon">💬</span>Feed</div>
+    <div class="tab active"><span class="tab-icon">🌐</span>Sites</div>
+    <div class="tab"><span class="tab-icon">⚙️</span>Settings</div>
+  </div>
+</div>
+</div>
+
+</div><!-- end phones-row -->
+
+<div class="phones-row">
+
+<!-- ===== SETTINGS ===== -->
+<div>
+<div class="mockup-label">Settings Screen</div>
+<div class="phone">
+  <div class="status-bar">
+    <span class="time">9:41</span>
+    <span class="icons">📶 🔋</span>
+  </div>
+  <div class="app-header">
+    <h2>Settings</h2>
+  </div>
+  <div class="settings-section">
+    <div class="settings-group">
+      <h3>Push Notifications</h3>
+      <div class="settings-row">
+        <span>Enabled</span>
+        <div class="toggle"></div>
+      </div>
+      <button class="settings-btn">Send Test Notification</button>
+    </div>
+    <div class="settings-group">
+      <h3>Account</h3>
+      <div class="settings-row">
+        <span style="color: #888;">amarsh.anand@gmail.com</span>
+      </div>
+      <button class="signout-btn" style="margin-top: 8px;">Sign Out</button>
+    </div>
+  </div>
+  <div class="tab-bar">
+    <div class="tab"><span class="tab-icon">💬</span>Feed</div>
+    <div class="tab"><span class="tab-icon">🌐</span>Sites</div>
+    <div class="tab active"><span class="tab-icon">⚙️</span>Settings</div>
+  </div>
+</div>
+</div>
+
+<!-- ===== PUSH NOTIFICATION ===== -->
+<div>
+<div class="mockup-label">Push Notification (on phone)</div>
+<div class="push-notif">
+  <div class="push-header">
+    <div class="push-icon">D</div>
+    <span class="push-app">DiscussIt</span>
+    <span class="push-time">now</span>
+  </div>
+  <div class="push-title">New comment on Distance Calculator</div>
+  <div class="push-body">Alice: This game is amazing! I love how the dinosaur walks along the trail...</div>
+</div>
+</div>
+
+</div><!-- end phones-row -->
+
+</body>
+</html>

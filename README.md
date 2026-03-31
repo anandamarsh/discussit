@@ -1,33 +1,58 @@
 # DiscussIt
 
-A minimal, serverless commenting system. Embed in any web app with one line of code. Moderate from your phone.
+A minimal embeddable comment system with a separate moderator PWA.
 
-Built with Supabase (Postgres + Edge Functions + Auth) and Vercel (static hosting). Zero servers. Zero cost.
+DiscussIt is built for small web apps that need simple comments without running a custom backend.
 
-## Plan
+## What It Includes
 
-The full implementation plan with architecture diagrams and UI mockups is in [`plan/plan.md`](plan/plan.md).
+- `widget/` — the embeddable comments UI
+- `portal/` — the moderator PWA
+- `supabase/` — database schema and backend config
+- `shared/` — shared types
+- `plan/` — archived planning docs and mockups from the build phase
 
-Quick links:
+## Stack
 
-- [Architecture diagrams](plan/diagrams/architecture.md) — system overview, deployment topology, iframe embedding flow
-- [Security model](plan/diagrams/security.md) — Origin checking, rate limiting, admin auth, role permissions
-- [Data model](plan/diagrams/data-model.md) — ER diagram, threading model, SQL schema
-- [Widget mockups](plan/mockups/widget.md) — comment thread, reply mode, loading/empty/error states
-- [Portal mockups](plan/mockups/portal.md) — login, feed, detail view, sites, settings, push notification
+- Frontend: Preact widget + React moderator portal
+- Backend: Supabase Postgres + Realtime
+- Hosting: Vercel
+- PWA: moderator portal is installable and cache-backed
 
-## Status
+## Local Development
 
-**Planning phase.** Code implementation has not started.
+Run both frontends:
 
-## How It Will Work
-
-**For app users** — a comment widget appears at the bottom of each app (interactive-maths, distance-calculator, angle-explorer). Users type their name, email, and a comment. No sign-up needed.
-
-**For the moderator** — a mobile-first PWA with push notifications. See all comments across all apps, mark as read, delete bad ones.
-
-**For app developers** — one line to embed:
-
-```html
-<script src="https://discussit-widget.vercel.app/embed.js" data-theme="dark" async></script>
+```bash
+npm install
+npm run dev
 ```
+
+This starts:
+
+- widget on `http://localhost:5001`
+- moderator portal on `http://localhost:5002`
+
+The current local setup uses Supabase directly.
+
+## Current Features
+
+- Embed comments in multiple apps through an iframe
+- Persistent comments in Supabase
+- Live updates through Supabase Realtime
+- Simple moderator workflow by URL
+- Per-comment likes and dislikes
+- Installable moderator portal PWA
+- Local commenter identity remembered in browser storage
+
+## Related Apps
+
+DiscussIt is currently wired into:
+
+- `interactive-maths`
+- `maths-angle-explorer`
+- `maths-distance-calculator`
+
+## Planning Archive
+
+The original planning material is still available in [`plan/plan.md`](plan/plan.md) and the `plan/` folder for reference, but the project is now implemented rather than being planning-only.

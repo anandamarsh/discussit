@@ -2,107 +2,159 @@
 
 ## Entity Relationship Diagram
 
+```mermaid
+erDiagram
+    sites {
+        UUID id PK
+        TEXT domain UK "e.g. maths-distance-calculator.vercel.app"
+        TEXT name "e.g. Distance Calculator"
+        TIMESTAMPTZ created_at
+    }
+
+    pages {
+        UUID id PK
+        UUID site_id FK
+        TEXT url "Full page URL"
+        TEXT title "Page title"
+        TIMESTAMPTZ created_at
+    }
+
+    comments {
+        UUID id PK
+        UUID page_id FK
+        UUID parent_id FK "NULL = top-level"
+        TEXT author_name "Visible to public"
+        TEXT author_email "Hidden from public"
+        TEXT body "Comment text"
+        TIMESTAMPTZ created_at
+        BOOLEAN is_deleted "Soft delete"
+    }
+
+    mod_read_status {
+        UUID comment_id PK "FK to comments"
+        TIMESTAMPTZ read_at
+    }
+
+    push_subscriptions {
+        UUID id PK
+        TEXT endpoint UK "Web Push URL"
+        TEXT keys_p256dh "Encryption key"
+        TEXT keys_auth "Auth key"
+        TIMESTAMPTZ created_at
+    }
+
+    rate_limits {
+        TEXT ip "Client IP"
+        TIMESTAMPTZ created_at "Request time"
+    }
+
+    sites ||--o{ pages : "has"
+    pages ||--o{ comments : "has"
+    comments ||--o{ comments : "replies (1 level)"
+    comments ||--o| mod_read_status : "read status"
 ```
-┌──────────────────┐       ┌──────────────────────────────────────┐
-│  sites           │       │  pages                               │
-├──────────────────┤       ├──────────────────────────────────────┤
-│  id        (PK)  │──┐    │  id        (PK)                      │
-│  domain    (UQ)  │  │    │  site_id   (FK → sites.id)           │
-│  name            │  └───>│  url       (UQ with site_id)         │
-│  created_at      │       │  title                               │
-└──────────────────┘       │  created_at                          │
-                           └────────────────┬─────────────────────┘
-                                            │
-                                            │ 1:many
-                                            ▼
-                           ┌──────────────────────────────────────┐
-                           │  comments                            │
-                           ├──────────────────────────────────────┤
-                           │  id           (PK)                   │
-                           │  page_id      (FK → pages.id)        │
-                           │  parent_id    (FK → comments.id)  ◄──┤ self-ref
-                           │  author_name                         │ (1 level only)
-                           │  author_email (hidden from public)   │
-                           │  body                                │
-                           │  created_at                          │
-                           │  is_deleted   (soft delete)          │
-                           └────────────────┬─────────────────────┘
-                                            │
-                                            │ 1:1
-                                            ▼
-                           ┌──────────────────────────────────────┐
-                           │  mod_read_status                     │
-                           ├──────────────────────────────────────┤
-                           │  comment_id   (PK, FK → comments.id) │
-                           │  read_at                             │
-                           └──────────────────────────────────────┘
 
+## Threading Model
 
-┌──────────────────────────────────────┐  ┌─────────────────────────┐
-│  push_subscriptions                  │  │  rate_limits            │
-├──────────────────────────────────────┤  ├─────────────────────────┤
-│  id           (PK)                   │  │  ip                     │
-│  endpoint     (UQ)                   │  │  created_at             │
-│  keys_p256dh                         │  └─────────────────────────┘
-│  keys_auth                           │
-│  created_at                          │
-└──────────────────────────────────────┘
-```
+```mermaid
+flowchart TB
+    subgraph Page["Page: maths-distance-calculator.vercel.app"]
+        A["💬 Comment A\nparent_id = NULL"]
+        A1["↩ Reply A1\nparent_id = A"]
+        A2["↩ Reply A2\nparent_id = A"]
+        A3["↩ Reply A3\nparent_id = A"]
 
-## Threading Model (1-level)
+        B["💬 Comment B\nparent_id = NULL"]
+        B1["↩ Reply B1\nparent_id = B"]
 
-```
-Page: maths-distance-calculator.vercel.app/
+        C["💬 Comment C\nparent_id = NULL\n(no replies)"]
 
-  Comment A  (parent_id = NULL)         ← top-level
-  ├── Reply A1 (parent_id = A)          ← reply to A
-  ├── Reply A2 (parent_id = A)          ← reply to A
-  └── Reply A3 (parent_id = A)          ← reply to A
+        A --> A1
+        A --> A2
+        A --> A3
+        B --> B1
+    end
 
-  Comment B  (parent_id = NULL)         ← top-level
-  └── Reply B1 (parent_id = B)          ← reply to B
+    X["❌ Reply to Reply A1\nparent_id = A1"]
+    X -. "REJECTED\nCannot reply to a reply" .-> A1
 
-  Comment C  (parent_id = NULL)         ← top-level (no replies yet)
-
-  ❌ Reply to A1 (parent_id = A1) → REJECTED by post_comment()
-     "Cannot reply to a reply (1-level threading only)"
+    style A fill:#1e40af,stroke:#3b82f6,color:#fff
+    style B fill:#1e40af,stroke:#3b82f6,color:#fff
+    style C fill:#1e40af,stroke:#3b82f6,color:#fff
+    style A1 fill:#1e293b,stroke:#475569,color:#e2e8f0
+    style A2 fill:#1e293b,stroke:#475569,color:#e2e8f0
+    style A3 fill:#1e293b,stroke:#475569,color:#e2e8f0
+    style B1 fill:#1e293b,stroke:#475569,color:#e2e8f0
+    style X fill:#7f1d1d,stroke:#dc2626,color:#fca5a5
 ```
 
 ## Soft Delete Behavior
 
-```
-Before delete:
-  Comment A: "This game is amazing!"
-  └── Reply A1: "I agree!"
+```mermaid
+flowchart LR
+    subgraph Before["Before delete"]
+        BA["Comment A\n'This game is amazing!'"]
+        BA1["Reply A1\n'I agree!'"]
+        BA --> BA1
+    end
 
-After mod soft-deletes Comment A:
-  Comment A: is_deleted = true
-  └── Reply A1: "I agree!" (unchanged)
+    subgraph After["After soft delete"]
+        AA["Comment A\nis_deleted = true"]
+        AA1["Reply A1\n'I agree!'\n(unchanged)"]
+        AA --> AA1
+    end
 
-What the public widget shows:
-  [removed]
-  └── "I agree!"
+    subgraph Public["Widget shows"]
+        PA["[removed]"]
+        PA1["'I agree!'"]
+        PA --> PA1
+    end
 
-What the mod portal shows:
-  ⚠️ "This game is amazing!" (DELETED)
-  └── "I agree!"
+    subgraph ModPortal["Mod portal shows"]
+        MA["⚠️ DELETED\n'This game is amazing!'"]
+        MA1["'I agree!'"]
+        MA --> MA1
+    end
+
+    Before -.-> After
+    After -.-> Public
+    After -.-> ModPortal
+
+    style Before fill:#1e293b,stroke:#475569,color:#e2e8f0
+    style After fill:#1e293b,stroke:#f59e0b,color:#fcd34d
+    style Public fill:#0f172a,stroke:#3b82f6,color:#93c5fd
+    style ModPortal fill:#0f172a,stroke:#7c3aed,color:#c4b5fd
 ```
 
 ## Read/Unread Tracking
 
-```
-comment_id | exists in mod_read_status? | Status
-───────────┼────────────────────────────┼─────────
-abc-123    │  yes (read_at: 2026-03-31) │ READ
-def-456    │  no                        │ UNREAD
-ghi-789    │  yes (read_at: 2026-03-31) │ READ
-jkl-012    │  no                        │ UNREAD
+```mermaid
+flowchart LR
+    subgraph Comments["comments table"]
+        C1["abc-123 · Alice\n'Great game!'"]
+        C2["def-456 · Bob\n'I agree'"]
+        C3["ghi-789 · Charlie\n'How to reset?'"]
+        C4["jkl-012 · Diana\n'Add more games!'"]
+    end
 
-Mod portal query for unread:
-  SELECT c.* FROM comments c
-  LEFT JOIN mod_read_status m ON m.comment_id = c.id
-  WHERE m.comment_id IS NULL
-  ORDER BY c.created_at DESC
+    subgraph ReadStatus["mod_read_status"]
+        R1["abc-123 ✓"]
+        R3["ghi-789 ✓"]
+    end
+
+    C1 -.- R1
+    C3 -.- R3
+
+    subgraph Display["Mod Portal"]
+        D1["○ Alice: 'Great game!' · read"]
+        D2["● Bob: 'I agree' · UNREAD"]
+        D3["○ Charlie: 'How to reset?' · read"]
+        D4["● Diana: 'Add more games!' · UNREAD"]
+    end
+
+    style Comments fill:#1e293b,stroke:#475569,color:#e2e8f0
+    style ReadStatus fill:#14532d,stroke:#22c55e,color:#86efac
+    style Display fill:#0f172a,stroke:#7c3aed,color:#c4b5fd
 ```
 
 ## SQL Schema
@@ -157,13 +209,4 @@ CREATE TABLE rate_limits (
 CREATE INDEX idx_comments_page ON comments(page_id, created_at);
 CREATE INDEX idx_comments_parent ON comments(parent_id);
 CREATE INDEX idx_rate_limits_ip ON rate_limits(ip, created_at);
-```
-
-## Initial Seed Data
-
-```sql
-INSERT INTO sites (domain, name) VALUES
-  ('interactive-maths.vercel.app', 'Interactive Maths'),
-  ('maths-distance-calculator.vercel.app', 'Distance Calculator'),
-  ('maths-angle-explorer.vercel.app', 'Angle Explorer');
 ```

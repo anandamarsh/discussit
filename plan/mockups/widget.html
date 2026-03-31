@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DiscussIt Widget — UI Mockup</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0f172a; color: #e2e8f0; padding: 20px; }
+  h1 { font-size: 14px; color: #64748b; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 1px; }
+  .mockup-label { font-size: 11px; color: #f59e0b; margin: 32px 0 12px; text-transform: uppercase; letter-spacing: 2px; font-weight: 600; }
+  .mockup-label:first-of-type { margin-top: 16px; }
+
+  .widget {
+    max-width: 600px;
+    background: #1e293b;
+    border-radius: 12px;
+    overflow: hidden;
+    border: 1px solid #334155;
+    margin-bottom: 32px;
+  }
+
+  .widget-header {
+    padding: 16px 20px;
+    border-bottom: 1px solid #334155;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .widget-header span { font-size: 15px; font-weight: 600; }
+  .widget-header .count { color: #64748b; font-weight: 400; }
+
+  .comment {
+    padding: 16px 20px;
+    border-bottom: 1px solid #1e293b;
+  }
+  .comment:last-child { border-bottom: none; }
+
+  .comment-meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+  .avatar {
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 700; color: #fff;
+  }
+  .author { font-weight: 600; font-size: 14px; }
+  .time { color: #64748b; font-size: 12px; }
+
+  .comment-body { font-size: 14px; line-height: 1.5; color: #cbd5e1; margin-bottom: 8px; }
+
+  .reply-btn {
+    background: none; border: none; color: #3b82f6; font-size: 12px; cursor: pointer;
+    padding: 4px 0; font-weight: 500;
+  }
+  .reply-btn:hover { text-decoration: underline; }
+
+  .replies {
+    margin-left: 36px;
+    border-left: 2px solid #334155;
+    margin-top: 12px;
+  }
+  .replies .comment { padding: 12px 16px; }
+
+  .deleted-comment {
+    color: #64748b;
+    font-style: italic;
+    padding: 16px 20px;
+    border-bottom: 1px solid #1e293b;
+  }
+
+  .form-section {
+    padding: 20px;
+    background: #0f172a;
+    border-top: 1px solid #334155;
+  }
+
+  .form-row {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 12px;
+  }
+  .form-group { flex: 1; }
+  .form-group label {
+    display: block;
+    font-size: 12px;
+    color: #94a3b8;
+    margin-bottom: 4px;
+    font-weight: 500;
+  }
+  .form-group input, .form-group textarea {
+    width: 100%;
+    background: #1e293b;
+    border: 1px solid #334155;
+    border-radius: 8px;
+    padding: 10px 12px;
+    color: #e2e8f0;
+    font-size: 14px;
+    font-family: inherit;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  .form-group input:focus, .form-group textarea:focus {
+    border-color: #3b82f6;
+  }
+  .form-group textarea {
+    resize: vertical;
+    min-height: 80px;
+  }
+
+  .form-actions {
+    display: flex;
+    justify-content: flex-end;
+  }
+  .post-btn {
+    background: #3b82f6;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    padding: 10px 24px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .post-btn:hover { background: #2563eb; }
+
+  /* Reply form inline */
+  .reply-form {
+    margin-left: 36px;
+    margin-top: 12px;
+    background: #0f172a;
+    border-radius: 8px;
+    padding: 16px;
+    border: 1px solid #334155;
+  }
+  .reply-form-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+  }
+  .reply-form-header span { font-size: 13px; color: #94a3b8; }
+  .cancel-btn {
+    background: none; border: none; color: #ef4444; font-size: 12px; cursor: pointer;
+  }
+
+  /* Loading skeleton */
+  .skeleton { background: #334155; border-radius: 4px; animation: pulse 1.5s ease-in-out infinite; }
+  @keyframes pulse { 0%, 100% { opacity: 0.4; } 50% { opacity: 0.8; } }
+  .skeleton-line { height: 12px; margin-bottom: 8px; }
+  .skeleton-line.short { width: 40%; }
+  .skeleton-line.medium { width: 70%; }
+  .skeleton-line.long { width: 90%; }
+
+  /* Empty state */
+  .empty-state {
+    text-align: center;
+    padding: 48px 20px;
+    color: #64748b;
+  }
+  .empty-state .icon { font-size: 36px; margin-bottom: 12px; }
+  .empty-state p { font-size: 14px; line-height: 1.5; }
+
+  /* Error state */
+  .error-banner {
+    background: #451a03;
+    border: 1px solid #92400e;
+    border-radius: 8px;
+    padding: 12px 16px;
+    margin: 16px 20px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: #fbbf24;
+  }
+  .retry-btn {
+    background: #92400e;
+    color: #fbbf24;
+    border: none;
+    border-radius: 6px;
+    padding: 6px 16px;
+    font-size: 12px;
+    cursor: pointer;
+    margin-left: auto;
+    white-space: nowrap;
+  }
+</style>
+</head>
+<body>
+
+<h1>DiscussIt Widget — UI Mockups</h1>
+
+<!-- ===== MAIN STATE: Comment Thread ===== -->
+<div class="mockup-label">Comment Thread (dark theme)</div>
+<div class="widget">
+  <div class="widget-header">
+    <span>Discussion</span>
+    <span class="count">(5 comments)</span>
+  </div>
+
+  <!-- Top-level comment with replies -->
+  <div class="comment">
+    <div class="comment-meta">
+      <div class="avatar" style="background:#3b82f6">A</div>
+      <span class="author">Alice</span>
+      <span class="time">· 2 hours ago</span>
+    </div>
+    <div class="comment-body">This game is amazing! I love how the dinosaur walks along the trail. My students can't stop playing level 3.</div>
+    <button class="reply-btn">Reply</button>
+
+    <div class="replies">
+      <div class="comment">
+        <div class="comment-meta">
+          <div class="avatar" style="background:#8b5cf6">B</div>
+          <span class="author">Bob</span>
+          <span class="time">· 1 hour ago</span>
+        </div>
+        <div class="comment-body">I agree! Level 3 is tricky but the kids love the challenge.</div>
+      </div>
+      <div class="comment">
+        <div class="comment-meta">
+          <div class="avatar" style="background:#ec4899">C</div>
+          <span class="author">Charlie</span>
+          <span class="time">· 45 min ago</span>
+        </div>
+        <div class="comment-body">Which school are you at? We just started using this too!</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Deleted comment with reply -->
+  <div class="deleted-comment">[removed]</div>
+  <div style="margin-left: 36px; border-left: 2px solid #334155;">
+    <div class="comment">
+      <div class="comment-meta">
+        <div class="avatar" style="background:#10b981">E</div>
+        <span class="author">Eve</span>
+        <span class="time">· 30 min ago</span>
+      </div>
+      <div class="comment-body">Thanks for the heads up!</div>
+    </div>
+  </div>
+
+  <!-- Top-level comment, no replies -->
+  <div class="comment">
+    <div class="comment-meta">
+      <div class="avatar" style="background:#f59e0b">D</div>
+      <span class="author">Diana</span>
+      <span class="time">· 15 min ago</span>
+    </div>
+    <div class="comment-body">How do I reset my progress? I want to start from level 1 again.</div>
+    <button class="reply-btn">Reply</button>
+  </div>
+
+  <!-- Post form -->
+  <div class="form-section">
+    <div class="form-row">
+      <div class="form-group">
+        <label>Name</label>
+        <input type="text" value="Alice" />
+      </div>
+      <div class="form-group">
+        <label>Email</label>
+        <input type="email" value="alice@school.edu" />
+      </div>
+    </div>
+    <div class="form-group" style="margin-bottom: 12px;">
+      <label>Comment</label>
+      <textarea placeholder="Write a comment..."></textarea>
+    </div>
+    <div class="form-actions">
+      <button class="post-btn">Post Comment</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== REPLY MODE ===== -->
+<div class="mockup-label">Reply Mode (inline form)</div>
+<div class="widget">
+  <div class="widget-header">
+    <span>Discussion</span>
+    <span class="count">(5 comments)</span>
+  </div>
+  <div class="comment">
+    <div class="comment-meta">
+      <div class="avatar" style="background:#f59e0b">D</div>
+      <span class="author">Diana</span>
+      <span class="time">· 15 min ago</span>
+    </div>
+    <div class="comment-body">How do I reset my progress? I want to start from level 1 again.</div>
+
+    <div class="reply-form">
+      <div class="reply-form-header">
+        <span>Replying to Diana</span>
+        <button class="cancel-btn">Cancel</button>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Name</label>
+          <input type="text" value="Bob" />
+        </div>
+        <div class="form-group">
+          <label>Email</label>
+          <input type="email" value="bob@example.com" />
+        </div>
+      </div>
+      <div class="form-group" style="margin-bottom: 12px;">
+        <textarea placeholder="Write a reply..."></textarea>
+      </div>
+      <div class="form-actions">
+        <button class="post-btn">Post Reply</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== LOADING STATE ===== -->
+<div class="mockup-label">Loading State</div>
+<div class="widget">
+  <div class="widget-header">
+    <span>Discussion</span>
+  </div>
+  <div class="comment">
+    <div class="comment-meta">
+      <div class="skeleton" style="width:28px;height:28px;border-radius:50%"></div>
+      <div class="skeleton skeleton-line short" style="margin:0"></div>
+    </div>
+    <div class="skeleton skeleton-line long"></div>
+    <div class="skeleton skeleton-line medium"></div>
+  </div>
+  <div class="comment">
+    <div class="comment-meta">
+      <div class="skeleton" style="width:28px;height:28px;border-radius:50%"></div>
+      <div class="skeleton skeleton-line short" style="margin:0"></div>
+    </div>
+    <div class="skeleton skeleton-line medium"></div>
+  </div>
+  <div class="comment">
+    <div class="comment-meta">
+      <div class="skeleton" style="width:28px;height:28px;border-radius:50%"></div>
+      <div class="skeleton skeleton-line short" style="margin:0"></div>
+    </div>
+    <div class="skeleton skeleton-line long"></div>
+    <div class="skeleton skeleton-line short"></div>
+  </div>
+</div>
+
+<!-- ===== EMPTY STATE ===== -->
+<div class="mockup-label">Empty State</div>
+<div class="widget">
+  <div class="widget-header">
+    <span>Discussion</span>
+  </div>
+  <div class="empty-state">
+    <div class="icon">💬</div>
+    <p><strong>No comments yet.</strong></p>
+    <p>Be the first to share your thoughts!</p>
+  </div>
+  <div class="form-section">
+    <div class="form-row">
+      <div class="form-group">
+        <label>Name</label>
+        <input type="text" placeholder="Your name" />
+      </div>
+      <div class="form-group">
+        <label>Email</label>
+        <input type="email" placeholder="Your email" />
+      </div>
+    </div>
+    <div class="form-group" style="margin-bottom: 12px;">
+      <textarea placeholder="Write a comment..."></textarea>
+    </div>
+    <div class="form-actions">
+      <button class="post-btn">Post Comment</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== ERROR STATE ===== -->
+<div class="mockup-label">Error State (post failed)</div>
+<div class="widget">
+  <div class="widget-header">
+    <span>Discussion</span>
+    <span class="count">(3 comments)</span>
+  </div>
+  <div class="error-banner">
+    <span>⚠️</span>
+    <span>Couldn't post your comment. Please try again.</span>
+    <button class="retry-btn">Retry</button>
+  </div>
+  <div class="form-section">
+    <div class="form-group" style="margin-bottom: 12px;">
+      <textarea style="border-color: #92400e;">This game is broken on Safari...</textarea>
+    </div>
+    <div class="form-actions">
+      <button class="post-btn">Post Comment</button>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
