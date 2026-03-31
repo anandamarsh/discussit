@@ -592,6 +592,20 @@ function App() {
 
             <div className="menu-main">
               <div className="menu-list">
+                <button
+                  type="button"
+                  className={`menu-item ${selectedUrl === null ? "is-active" : ""}`}
+                  onClick={() => {
+                    chooseUrl(null);
+                    setMenuOpen(false);
+                  }}
+                >
+                  <span className="menu-label">
+                    <strong>Home</strong>
+                    <small>All unapproved comments</small>
+                  </span>
+                  <span className="menu-count">{unreadFeed.length}</span>
+                </button>
                 {urlGroups.map((group) => (
                   <button
                     type="button"
