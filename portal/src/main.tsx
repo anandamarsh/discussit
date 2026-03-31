@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import ReactDOM from "react-dom/client";
-import { portalSupabase } from "./supabase";
+import { portalSupabase, updateCommentReactions } from "./supabase";
 import { ensurePushSubscription, sendTestPush } from "./pushNotifications";
 import "./styles.css";
 import type { Session } from "@supabase/supabase-js";
@@ -30,6 +30,10 @@ type FeedItem = {
 const moderatorEmail = "amarsh.anand@gmail.com";
 const autoSignInAttemptKey = "discussit:moderator:auto-signin-attempted";
 const notificationPreferenceKey = "discussit:moderator:notifications";
+
+function reactionsStorageKey() {
+  return "discussit:moderator:reactions:v1";
+}
 
 function formatTimestamp(value: string) {
   const date = new Date(value);
@@ -124,6 +128,18 @@ function App() {
   const [notificationPreference, setNotificationPreference] = useState(readNotificationPreference);
   const [settingsError, setSettingsError] = useState("");
   const [sendingPush, setSendingPush] = useState(false);
+  const [reactions, setReactions] = useState<Record<string, "like" | "dislike" | null>>(() => {
+    if (typeof window === "undefined") {
+      return {};
+    }
+
+    try {
+      const saved = window.localStorage.getItem(reactionsStorageKey());
+      return saved ? JSON.parse(saved) as Record<string, "like" | "dislike" | null> : {};
+    } catch {
+      return {};
+    }
+  });
 
   const sessionEmail = session?.user.email?.toLowerCase() ?? "";
   const isAuthorizedModerator = sessionEmail === moderatorEmail;
@@ -292,6 +308,19 @@ function App() {
 
   const currentTitle = selectedUrl ? labelForUrl(selectedUrl) : "Moderator Panel";
   const notificationsEnabled = notificationPreference === "on";
+  const reactionActorName =
+    session?.user.user_metadata?.full_name
+    ?? session?.user.user_metadata?.name
+    ?? session?.user.email?.split("@")[0]
+    ?? "Moderator";
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    window.localStorage.setItem(reactionsStorageKey(), JSON.stringify(reactions));
+  }, [reactions]);
 
   const markRead = async (commentId: string) => {
     await portalSupabase.from("comments").update({ status: "Read" }).eq("id", commentId);
@@ -304,6 +333,82 @@ function App() {
     await portalSupabase.from("comments").delete().eq("id", commentId);
     setFeed((current) => current.filter((item) => item.id !== commentId));
     setPendingDelete(null);
+  };
+
+  const toggleReaction = (commentId: string, nextReaction: "like" | "dislike") => {
+    const previousReaction = reactions[commentId] ?? null;
+    const finalReaction = previousReaction === nextReaction ? null : nextReaction;
+    const currentComment = feed.find((item) => item.id === commentId);
+
+    if (!currentComment) {
+      return;
+    }
+
+    let likes = currentComment.likes;
+    let dislikes = currentComment.dislikes;
+
+    if (previousReaction === "like") {
+      likes = Math.max(0, likes - 1);
+    }
+    if (previousReaction === "dislike") {
+      dislikes = Math.max(0, dislikes - 1);
+    }
+    if (finalReaction === "like") {
+      likes += 1;
+    }
+    if (finalReaction === "dislike") {
+      dislikes += 1;
+    }
+
+    setFeed((current) =>
+      current.map((item) => (item.id === commentId ? { ...item, likes, dislikes } : item)),
+    );
+    setReactions((current) => ({
+      ...current,
+      [commentId]: finalReaction,
+    }));
+
+    void updateCommentReactions({
+      commentId,
+      pageUrl: currentComment.pageUrl,
+      likes,
+      dislikes,
+      reaction: finalReaction ?? "clear",
+      actorName: reactionActorName,
+    })
+      .then((data) => {
+        setFeed((current) =>
+          current.map((item) =>
+            item.id === data.id
+              ? {
+                  ...item,
+                  authorName: data.authorName,
+                  body: data.body,
+                  createdAt: data.createdAt,
+                  likes: data.likes,
+                  dislikes: data.dislikes,
+                }
+              : item,
+          ),
+        );
+      })
+      .catch(() => {
+        setFeed((current) =>
+          current.map((item) =>
+            item.id === commentId
+              ? {
+                  ...item,
+                  likes: currentComment.likes,
+                  dislikes: currentComment.dislikes,
+                }
+              : item,
+          ),
+        );
+        setReactions((current) => ({
+          ...current,
+          [commentId]: previousReaction,
+        }));
+      });
   };
 
   const signIn = async (forceAccountChoice = false) => {
@@ -564,8 +669,24 @@ function App() {
 
               <div className="comment-meta">
                 <span>{formatTimestamp(item.createdAt)}</span>
-                <span>👍 {item.likes}</span>
-                <span>👎 {item.dislikes}</span>
+                <button
+                  type="button"
+                  className={`reaction-chip ${reactions[item.id] === "like" ? "is-active" : ""}`}
+                  onClick={() => toggleReaction(item.id, "like")}
+                  aria-label="Like comment"
+                >
+                  <span>👍</span>
+                  <span>{item.likes}</span>
+                </button>
+                <button
+                  type="button"
+                  className={`reaction-chip ${reactions[item.id] === "dislike" ? "is-active" : ""}`}
+                  onClick={() => toggleReaction(item.id, "dislike")}
+                  aria-label="Dislike comment"
+                >
+                  <span>👎</span>
+                  <span>{item.dislikes}</span>
+                </button>
               </div>
 
               <div className="comment-actions">
