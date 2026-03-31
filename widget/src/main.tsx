@@ -362,6 +362,7 @@ function App() {
       likes,
       dislikes,
       reaction: finalReaction ?? "clear",
+      actorName: authorName.trim() || "Anonymous",
     }).then((data) => {
       if (data) {
           setComments((current) =>

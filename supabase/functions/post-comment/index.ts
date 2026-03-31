@@ -181,7 +181,7 @@ Deno.serve(async (request) => {
     if (!subscriptionError && subscriptions?.length) {
       const notificationPayload = JSON.stringify({
         title: "DiscussIt Moderator",
-        body: `${data.author_name}: ${data.body.slice(0, 120)}`,
+        body: `${data.author_name} posted a new comment`,
         url: pageUrl,
         tag: `comment-${data.id}`,
       });

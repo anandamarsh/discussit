@@ -14,6 +14,7 @@ type ReactionRequest = {
   likes?: number;
   dislikes?: number;
   reaction?: "like" | "dislike" | "clear";
+  actorName?: string;
 };
 
 type StoredPushSubscription = {
@@ -69,6 +70,7 @@ Deno.serve(async (request) => {
   const likes = Number(payload.likes);
   const dislikes = Number(payload.dislikes);
   const reaction = payload.reaction ?? "clear";
+  const actorName = (payload.actorName?.trim() || "Anonymous").slice(0, 80);
 
   if (!commentId || !pageUrl || !Number.isInteger(likes) || !Number.isInteger(dislikes) || likes < 0 || dislikes < 0) {
     return json(400, { error: "Invalid reaction payload" });
@@ -124,10 +126,10 @@ Deno.serve(async (request) => {
       .select("endpoint, expiration_time, keys_auth, keys_p256dh");
 
     if (!subscriptionError && subscriptions?.length) {
-      const emoji = reaction === "like" ? "👍" : "👎";
+      const verb = reaction === "like" ? "liked" : "disliked";
       const notificationPayload = JSON.stringify({
         title: "DiscussIt Moderator",
-        body: `${emoji} Reaction on comment from ${updated.author_name}`,
+        body: `${actorName} ${verb} a comment by ${updated.author_name}`,
         url: pageUrl,
         tag: `reaction-${updated.id}-${reaction}`,
       });

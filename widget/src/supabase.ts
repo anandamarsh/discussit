@@ -35,6 +35,7 @@ export async function updateCommentReactions(input: {
   likes: number;
   dislikes: number;
   reaction: "like" | "dislike" | "clear";
+  actorName: string;
 }) {
   const { data, error } = await widgetSupabase.functions.invoke("react-comment", {
     body: input,
