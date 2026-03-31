@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import ReactDOM from "react-dom/client";
 import { portalSupabase } from "./supabase";
+import { ensurePushSubscription, sendTestPush } from "./pushNotifications";
 import "./styles.css";
 import type { Session } from "@supabase/supabase-js";
 
@@ -28,6 +29,7 @@ type FeedItem = {
 
 const moderatorEmail = "amarsh.anand@gmail.com";
 const autoSignInAttemptKey = "discussit:moderator:auto-signin-attempted";
+const notificationPreferenceKey = "discussit:moderator:notifications";
 
 function formatTimestamp(value: string) {
   const date = new Date(value);
@@ -81,6 +83,25 @@ function GoogleIcon() {
   );
 }
 
+function GearIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" className="drawer-action-icon">
+      <path
+        d="M12 8.6a3.4 3.4 0 1 0 0 6.8 3.4 3.4 0 0 0 0-6.8Zm8.1 4.3-1.7.8c-.1.5-.3 1-.6 1.4l.7 1.7a.9.9 0 0 1-.2 1l-1.1 1.1a.9.9 0 0 1-1 .2l-1.7-.7c-.4.2-.9.4-1.4.6l-.8 1.7a.9.9 0 0 1-.8.5h-1.6a.9.9 0 0 1-.8-.5l-.8-1.7c-.5-.1-1-.3-1.4-.6l-1.7.7a.9.9 0 0 1-1-.2l-1.1-1.1a.9.9 0 0 1-.2-1l.7-1.7c-.2-.4-.4-.9-.6-1.4l-1.7-.8a.9.9 0 0 1-.5-.8v-1.6c0-.4.2-.7.5-.8l1.7-.8c.1-.5.3-1 .6-1.4l-.7-1.7a.9.9 0 0 1 .2-1l1.1-1.1a.9.9 0 0 1 1-.2l1.7.7c.4-.2.9-.4 1.4-.6l.8-1.7a.9.9 0 0 1 .8-.5h1.6c.4 0 .7.2.8.5l.8 1.7c.5.1 1 .3 1.4.6l1.7-.7a.9.9 0 0 1 1 .2l1.1 1.1a.9.9 0 0 1 .2 1l-.7 1.7c.2.4.4.9.6 1.4l1.7.8c.3.1.5.4.5.8v1.6c0 .4-.2.7-.5.8Z"
+        fill="currentColor"
+      />
+    </svg>
+  );
+}
+
+function readNotificationPreference() {
+  if (typeof window === "undefined") {
+    return "off";
+  }
+
+  return window.localStorage.getItem(notificationPreferenceKey) ?? "off";
+}
+
 function App() {
   const [session, setSession] = useState<Session | null>(null);
   const [authReady, setAuthReady] = useState(false);
@@ -89,6 +110,10 @@ function App() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [selectedUrl, setSelectedUrl] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<FeedItem | null>(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [notificationPreference, setNotificationPreference] = useState(readNotificationPreference);
+  const [settingsError, setSettingsError] = useState("");
+  const [sendingPush, setSendingPush] = useState(false);
 
   const sessionEmail = session?.user.email?.toLowerCase() ?? "";
   const isAuthorizedModerator = sessionEmail === moderatorEmail;
@@ -226,6 +251,7 @@ function App() {
   const currentSubtitle = selectedUrl
     ? "All comments for this URL"
     : "Comments that need attention";
+  const notificationsEnabled = notificationPreference === "on";
 
   const markRead = async (commentId: string) => {
     await portalSupabase.from("comments").update({ status: "Read" }).eq("id", commentId);
@@ -257,8 +283,58 @@ function App() {
   const signOut = async () => {
     await portalSupabase.auth.signOut();
     setMenuOpen(false);
+    setSettingsOpen(false);
     setPendingDelete(null);
     setSelectedUrl(null);
+  };
+
+  const setPreference = (value: "on" | "off") => {
+    setNotificationPreference(value);
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(notificationPreferenceKey, value);
+    }
+  };
+
+  const toggleNotifications = async (enabled: boolean) => {
+    setSettingsError("");
+
+    if (!enabled) {
+      setPreference("off");
+      return;
+    }
+
+    if (typeof window === "undefined" || !("Notification" in window)) {
+      setSettingsError("Notifications are not available in this browser.");
+      return;
+    }
+
+    try {
+      const permission = await Notification.requestPermission();
+      if (permission !== "granted") {
+        setPreference("off");
+        setSettingsError("Notifications were not allowed.");
+        return;
+      }
+
+      await ensurePushSubscription();
+      setPreference("on");
+    } catch (error) {
+      setPreference("off");
+      setSettingsError(error instanceof Error ? error.message : "Failed to enable notifications.");
+    }
+  };
+
+  const pushTestNotification = async () => {
+    setSendingPush(true);
+    setSettingsError("");
+
+    try {
+      await sendTestPush();
+    } catch (error) {
+      setSettingsError(error instanceof Error ? error.message : "Failed to send test push.");
+    } finally {
+      setSendingPush(false);
+    }
   };
 
   if (!authReady) {
@@ -346,30 +422,13 @@ function App() {
           <h1>{currentTitle}</h1>
           <p>{currentSubtitle}</p>
         </div>
-
-        <div className="profile-controls">
-          <button
-            type="button"
-            className="profile-chip"
-            title={displayEmail}
-            aria-label={displayEmail}
-          >
-            {avatarUrl ? (
-              <img src={avatarUrl} alt="" className="profile-avatar" referrerPolicy="no-referrer" />
-            ) : (
-              <span className="profile-fallback">
-                {displayEmail.slice(0, 1).toUpperCase()}
-              </span>
-            )}
-          </button>
-          <button type="button" className="signout-button" onClick={() => void signOut()}>
-            Sign out
-          </button>
-        </div>
+        <div className="portal-header-spacer" />
       </header>
 
       {menuOpen ? (
-        <aside className="menu-sheet">
+        <>
+          <button type="button" className="menu-backdrop" aria-label="Close menu" onClick={() => setMenuOpen(false)} />
+          <aside className="menu-sheet">
           <div className="menu-sheet-header">
             <strong>URLs</strong>
             <button type="button" className="menu-close" onClick={() => setMenuOpen(false)}>
@@ -408,7 +467,44 @@ function App() {
               </button>
             ))}
           </div>
+          <div className="menu-footer">
+            <button
+              type="button"
+              className="drawer-action"
+              onClick={() => {
+                setSettingsOpen(true);
+                setMenuOpen(false);
+              }}
+            >
+              <span className="drawer-action-icon-wrap">
+                <GearIcon />
+              </span>
+              <span className="drawer-action-copy">
+                <strong>Settings</strong>
+              </span>
+            </button>
+            <button type="button" className="drawer-action" onClick={() => void signOut()}>
+              <span
+                className="profile-chip drawer-profile-chip"
+                title={displayEmail}
+                aria-label={displayEmail}
+              >
+                {avatarUrl ? (
+                  <img src={avatarUrl} alt="" className="profile-avatar" referrerPolicy="no-referrer" />
+                ) : (
+                  <span className="profile-fallback">
+                    {displayEmail.slice(0, 1).toUpperCase()}
+                  </span>
+                )}
+              </span>
+              <span className="drawer-action-copy">
+                <strong>Sign out</strong>
+                <small>{displayEmail}</small>
+              </span>
+            </button>
+          </div>
         </aside>
+        </>
       ) : null}
 
       <section className="comments-panel">
@@ -466,6 +562,52 @@ function App() {
                 Delete
               </button>
             </div>
+          </div>
+        </div>
+      ) : null}
+
+      {settingsOpen ? (
+        <div className="settings-overlay" role="dialog" aria-modal="true">
+          <div className="settings-card">
+            <div className="settings-header">
+              <div>
+                <p className="portal-kicker">Settings</p>
+                <h2>Notifications</h2>
+              </div>
+              <button type="button" className="settings-close" onClick={() => setSettingsOpen(false)} aria-label="Close settings">
+                ✕
+              </button>
+            </div>
+
+            <div className="settings-switch-row">
+              <span className="settings-label-group">
+                <span className="settings-label">Enable Notifications</span>
+                {notificationsEnabled ? (
+                  <button
+                    type="button"
+                    className="settings-push-button"
+                    onClick={() => void pushTestNotification()}
+                    disabled={sendingPush}
+                  >
+                    {sendingPush ? "Sending..." : "Push test"}
+                  </button>
+                ) : null}
+              </span>
+              <label className="settings-switch" aria-label="Enable notifications">
+                <input
+                  type="checkbox"
+                  checked={notificationsEnabled}
+                  onChange={(event) => {
+                    void toggleNotifications(event.currentTarget.checked);
+                  }}
+                />
+                <span className="settings-switch-track">
+                  <span className="settings-switch-thumb" />
+                </span>
+              </label>
+            </div>
+
+            {settingsError ? <p className="settings-note settings-error">{settingsError}</p> : null}
           </div>
         </div>
       ) : null}
