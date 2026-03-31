@@ -102,13 +102,22 @@ function readNotificationPreference() {
   return window.localStorage.getItem(notificationPreferenceKey) ?? "off";
 }
 
+function readSelectedUrlFromLocation() {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  const value = new URLSearchParams(window.location.search).get("page");
+  return value && value.trim().length > 0 ? value : null;
+}
+
 function App() {
   const [session, setSession] = useState<Session | null>(null);
   const [authReady, setAuthReady] = useState(false);
   const [autoSigningIn, setAutoSigningIn] = useState(false);
   const [feed, setFeed] = useState<FeedItem[]>([]);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [selectedUrl, setSelectedUrl] = useState<string | null>(null);
+  const [selectedUrl, setSelectedUrl] = useState<string | null>(readSelectedUrlFromLocation);
   const [pendingDelete, setPendingDelete] = useState<FeedItem | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [notificationPreference, setNotificationPreference] = useState(readNotificationPreference);
@@ -161,6 +170,19 @@ function App() {
       },
     });
   }, [authReady, session]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const handlePopState = () => {
+      setSelectedUrl(readSelectedUrlFromLocation());
+    };
+
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
 
   useEffect(() => {
     if (!isAuthorizedModerator) {
@@ -302,7 +324,7 @@ function App() {
     setMenuOpen(false);
     setSettingsOpen(false);
     setPendingDelete(null);
-    setSelectedUrl(null);
+    chooseUrl(null);
   };
 
   const setPreference = (value: "on" | "off") => {
@@ -310,6 +332,23 @@ function App() {
     if (typeof window !== "undefined") {
       window.localStorage.setItem(notificationPreferenceKey, value);
     }
+  };
+
+  const chooseUrl = (value: string | null) => {
+    setSelectedUrl(value);
+
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const nextUrl = new URL(window.location.href);
+    if (value) {
+      nextUrl.searchParams.set("page", value);
+    } else {
+      nextUrl.searchParams.delete("page");
+    }
+
+    window.history.replaceState({}, "", nextUrl);
   };
 
   const toggleNotifications = async (enabled: boolean) => {
@@ -450,7 +489,7 @@ function App() {
                 type="button"
                 className={`menu-item ${selectedUrl === null ? "is-active" : ""}`}
                 onClick={() => {
-                  setSelectedUrl(null);
+                  chooseUrl(null);
                   setMenuOpen(false);
                 }}
               >
@@ -465,7 +504,7 @@ function App() {
                     key={group.pageUrl}
                     className={`menu-item ${selectedUrl === group.pageUrl ? "is-active" : ""}`}
                     onClick={() => {
-                      setSelectedUrl(group.pageUrl);
+                      chooseUrl(group.pageUrl);
                       setMenuOpen(false);
                     }}
                   >

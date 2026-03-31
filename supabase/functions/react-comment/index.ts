@@ -24,6 +24,13 @@ type StoredPushSubscription = {
   keys_p256dh: string;
 };
 
+function moderatorPortalUrl(pageUrl: string) {
+  const baseUrl = Deno.env.get("MODERATOR_PORTAL_URL") ?? "https://discussit-portal.vercel.app";
+  const url = new URL(baseUrl);
+  url.searchParams.set("page", pageUrl);
+  return url.toString();
+}
+
 function json(status: number, body: Record<string, unknown>) {
   return new Response(JSON.stringify(body), {
     status,
@@ -130,7 +137,7 @@ Deno.serve(async (request) => {
       const notificationPayload = JSON.stringify({
         title: "DiscussIt Moderator",
         body: `${actorName} ${verb} a comment by ${updated.author_name}`,
-        url: pageUrl,
+        url: moderatorPortalUrl(pageUrl),
         tag: `reaction-${updated.id}-${reaction}`,
       });
 
