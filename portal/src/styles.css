@@ -31,6 +31,17 @@ button {
   padding: 18px;
 }
 
+.auth-icon-only {
+  width: 72px;
+  height: 72px;
+  border-radius: 18px;
+}
+
+.auth-icon-only.is-loading {
+  cursor: default;
+  opacity: 0.82;
+}
+
 .auth-card {
   width: min(100%, 420px);
   display: grid;

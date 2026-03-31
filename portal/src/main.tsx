@@ -340,10 +340,15 @@ function App() {
   if (!authReady) {
     return (
       <main className="portal-shell portal-auth-shell">
-        <section className="auth-card">
-          <p className="portal-kicker">Moderator</p>
-          <h1>Checking session...</h1>
-        </section>
+        <button
+          type="button"
+          className="google-auth-button auth-icon-only is-loading"
+          aria-label="Checking Google session"
+          title="Checking Google session"
+          disabled
+        >
+          <GoogleIcon />
+        </button>
       </main>
     );
   }
@@ -351,26 +356,15 @@ function App() {
   if (!session) {
     return (
       <main className="portal-shell portal-auth-shell">
-        <section className="auth-card">
-          <p className="portal-kicker">Moderator</p>
-          <h1>Sign in to moderate comments</h1>
-          <p>{autoSigningIn ? "Checking your Google session..." : "Use your Google account to open the moderator portal."}</p>
-          <button
-            type="button"
-            className="google-auth-button"
-            onClick={() => void signIn(true)}
-            aria-label="Sign in with Google"
-            title="Sign in with Google"
-          >
-            <GoogleIcon />
-          </button>
-          {!autoSigningIn ? (
-            <p className="auth-hint">If you are already signed in to Google, the portal should detect it automatically.</p>
-          ) : null}
-          {!autoSigningIn ? null : (
-            <p className="auth-hint">If nothing happens, press the Google icon to choose an account.</p>
-          )}
-        </section>
+        <button
+          type="button"
+          className="google-auth-button auth-icon-only"
+          onClick={() => void signIn(true)}
+          aria-label={autoSigningIn ? "Checking Google session" : "Sign in with Google"}
+          title={autoSigningIn ? "Checking Google session" : "Sign in with Google"}
+        >
+          <GoogleIcon />
+        </button>
       </main>
     );
   }
