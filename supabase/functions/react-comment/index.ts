@@ -31,6 +31,16 @@ function moderatorPortalUrl(pageUrl: string) {
   return url.toString();
 }
 
+function moderatorPortalOrigin() {
+  const baseUrl = Deno.env.get("MODERATOR_PORTAL_URL") ?? "https://discussit-portal.vercel.app";
+
+  try {
+    return new URL(baseUrl).origin;
+  } catch {
+    return "https://discussit-portal.vercel.app";
+  }
+}
+
 function json(status: number, body: Record<string, unknown>) {
   return new Response(JSON.stringify(body), {
     status,
@@ -100,8 +110,9 @@ Deno.serve(async (request) => {
 
   const allowedOrigins = parseAllowedList("ALLOWED_COMMENT_ORIGINS");
   const allowedPageOrigins = parseAllowedList("ALLOWED_COMMENT_PAGE_ORIGINS");
+  const isModeratorPortal = callerOrigin === moderatorPortalOrigin();
 
-  if (!callerOrigin || !allowedOrigins.includes(callerOrigin)) {
+  if (!callerOrigin || (!allowedOrigins.includes(callerOrigin) && !isModeratorPortal)) {
     return json(403, { error: "Origin is not allowed to react to comments" });
   }
 
