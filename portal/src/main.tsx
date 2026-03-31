@@ -27,6 +27,7 @@ type FeedItem = {
 };
 
 const moderatorEmail = "amarsh.anand@gmail.com";
+const autoSignInAttemptKey = "discussit:moderator:auto-signin-attempted";
 
 function formatTimestamp(value: string) {
   const date = new Date(value);
@@ -69,9 +70,21 @@ function hydrateItem(item: {
   };
 }
 
+function GoogleIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" className="google-icon">
+      <path fill="#EA4335" d="M12 10.2v3.9h5.5c-.2 1.3-1.5 3.9-5.5 3.9-3.3 0-6-2.7-6-6s2.7-6 6-6c1.9 0 3.1.8 3.8 1.5l2.6-2.5C16.7 3.5 14.6 2.5 12 2.5a9.5 9.5 0 1 0 0 19c5.5 0 9.1-3.8 9.1-9.2 0-.6-.1-1.1-.2-1.6H12Z" />
+      <path fill="#34A853" d="M2.5 7.9l3.2 2.3C6.6 8 9 6 12 6c1.9 0 3.1.8 3.8 1.5l2.6-2.5C16.7 3.5 14.6 2.5 12 2.5c-3.7 0-6.9 2.1-8.5 5.4Z" />
+      <path fill="#FBBC05" d="M12 21.5c2.5 0 4.6-.8 6.1-2.3l-2.8-2.3c-.8.6-1.9 1.1-3.3 1.1-4 0-5.2-2.6-5.5-3.9l-3.2 2.5C5 19.5 8.2 21.5 12 21.5Z" />
+      <path fill="#4285F4" d="M21.1 12.3c0-.6-.1-1.1-.2-1.6H12v3.9h5.5c-.3 1.1-1.1 1.9-2.2 2.5l2.8 2.3c1.6-1.5 3-3.9 3-7.1Z" />
+    </svg>
+  );
+}
+
 function App() {
   const [session, setSession] = useState<Session | null>(null);
   const [authReady, setAuthReady] = useState(false);
+  const [autoSigningIn, setAutoSigningIn] = useState(false);
   const [feed, setFeed] = useState<FeedItem[]>([]);
   const [menuOpen, setMenuOpen] = useState(false);
   const [selectedUrl, setSelectedUrl] = useState<string | null>(null);
@@ -95,6 +108,29 @@ function App() {
 
     return () => subscription.unsubscribe();
   }, []);
+
+  useEffect(() => {
+    if (!authReady || session || typeof window === "undefined") {
+      return;
+    }
+
+    if (window.sessionStorage.getItem(autoSignInAttemptKey) === "true") {
+      return;
+    }
+
+    window.sessionStorage.setItem(autoSignInAttemptKey, "true");
+    setAutoSigningIn(true);
+
+    void portalSupabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo: window.location.origin,
+        queryParams: {
+          prompt: "none",
+        },
+      },
+    });
+  }, [authReady, session]);
 
   useEffect(() => {
     if (!isAuthorizedModerator) {
@@ -199,11 +235,16 @@ function App() {
     setPendingDelete(null);
   };
 
-  const signIn = async () => {
+  const signIn = async (forceAccountChoice = false) => {
     await portalSupabase.auth.signInWithOAuth({
       provider: "google",
       options: {
         redirectTo: window.location.origin,
+        queryParams: forceAccountChoice
+          ? {
+              prompt: "select_account",
+            }
+          : undefined,
       },
     });
   };
@@ -232,10 +273,22 @@ function App() {
         <section className="auth-card">
           <p className="portal-kicker">Moderator</p>
           <h1>Sign in to moderate comments</h1>
-          <p>Use your Google account to open the moderator portal.</p>
-          <button type="button" className="auth-button" onClick={() => void signIn()}>
-            Continue with Google
+          <p>{autoSigningIn ? "Checking your Google session..." : "Use your Google account to open the moderator portal."}</p>
+          <button
+            type="button"
+            className="google-auth-button"
+            onClick={() => void signIn(true)}
+            aria-label="Sign in with Google"
+            title="Sign in with Google"
+          >
+            <GoogleIcon />
           </button>
+          {!autoSigningIn ? (
+            <p className="auth-hint">If you are already signed in to Google, the portal should detect it automatically.</p>
+          ) : null}
+          {!autoSigningIn ? null : (
+            <p className="auth-hint">If nothing happens, press the Google icon to choose an account.</p>
+          )}
         </section>
       </main>
     );
@@ -246,11 +299,21 @@ function App() {
       <main className="portal-shell portal-auth-shell">
         <section className="auth-card">
           <p className="portal-kicker">Moderator</p>
-          <h1>Access denied</h1>
+          <h1>Wrong Google account</h1>
           <p>
             Signed in as <strong>{session.user.email ?? "unknown account"}</strong>.
           </p>
-          <p>Only {moderatorEmail} can use this portal.</p>
+          <p>Use {moderatorEmail} for moderator access.</p>
+          <button
+            type="button"
+            className="google-auth-button"
+            onClick={() => void signIn(true)}
+            aria-label="Try Google sign in again"
+            title="Try Google sign in again"
+          >
+            <GoogleIcon />
+          </button>
+          <p className="auth-hint">Press the Google icon to choose a different account.</p>
           <button type="button" className="auth-button auth-button-secondary" onClick={() => void signOut()}>
             Sign out
           </button>
