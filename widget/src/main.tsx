@@ -1,6 +1,6 @@
 import { render } from "preact";
 import { useEffect, useMemo, useState } from "preact/hooks";
-import { widgetSupabase } from "./supabase";
+import { postComment, widgetSupabase } from "./supabase";
 import "./styles.css";
 
 type CommentItem = {
@@ -68,6 +68,8 @@ function App() {
   });
   const [body, setBody] = useState("");
   const [composerOpen, setComposerOpen] = useState(false);
+  const [submitError, setSubmitError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
   const [reactions, setReactions] = useState<Record<string, "like" | "dislike" | null>>(() => {
     try {
       const saved = window.localStorage.getItem(reactionsStorageKey(pageUrl));
@@ -251,25 +253,28 @@ function App() {
   }, [authorName, email]);
 
   const submitComment = () => {
-    if (!body.trim()) {
+    if (!body.trim() || submitting) {
       return;
     }
 
-    void widgetSupabase
-      .from("comments")
-      .insert({
-        page_url: pageUrl,
-        author_name: authorName.trim() || "Anonymous",
-        author_email: email.trim(),
-        body: body.trim(),
+    setSubmitting(true);
+    setSubmitError("");
+
+    void postComment({
+      pageUrl,
+      authorName,
+      authorEmail: email,
+      body,
+    })
+      .then(() => {
+        setBody("");
+        setComposerOpen(false);
       })
-      .select("id, author_name, body, created_at, likes, dislikes")
-      .single()
-      .then(({ data, error }) => {
-        if (!error && data) {
-          setBody("");
-          setComposerOpen(false);
-        }
+      .catch((error) => {
+        setSubmitError(error instanceof Error ? error.message : "Could not post comment.");
+      })
+      .finally(() => {
+        setSubmitting(false);
       });
   };
 
@@ -371,12 +376,13 @@ function App() {
               placeholder="Add a comment..."
               rows={4}
             />
+            {submitError ? <p class="comment-error">{submitError}</p> : null}
             <div class="form-actions">
               <button type="button" class="comment-form-secondary" onClick={() => setComposerOpen(false)}>
                 Cancel
               </button>
-              <button type="button" onClick={submitComment}>
-                Post
+              <button type="button" onClick={submitComment} disabled={submitting}>
+                {submitting ? "Posting..." : "Post"}
               </button>
             </div>
           </section>
