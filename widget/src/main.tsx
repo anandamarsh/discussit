@@ -27,7 +27,20 @@ function formatTimestamp(value: string) {
   if (Number.isNaN(date.getTime())) {
     return value;
   }
-  return date.toLocaleString();
+
+  const dayMonth = new Intl.DateTimeFormat("en-GB", {
+    day: "2-digit",
+    month: "short",
+  }).format(date);
+  const time = new Intl.DateTimeFormat("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  })
+    .format(date)
+    .replace(" ", "");
+
+  return `${dayMonth}, ${time}`;
 }
 
 function App() {
@@ -426,6 +439,11 @@ function App() {
         ) : null}
 
         <section class="thread-list">
+          <div class="thread-actions">
+            <button type="button" class="thread-new-comment" onClick={() => setComposerOpen(true)}>
+              Add Comment
+            </button>
+          </div>
           {comments.length === 0 ? null : comments.map((comment) => (
             <article class="comment-card" key={comment.id}>
               <div class="comment-topline">
@@ -440,7 +458,12 @@ function App() {
                   onClick={() => toggleReaction(comment.id, "like")}
                   aria-label="Like comment"
                 >
-                  <span>👍</span>
+                  <span class="reaction-icon" aria-hidden="true">
+                    <svg viewBox="0 0 20 20" fill="currentColor">
+                      <path d="M10.814 2.138a1 1 0 0 0-1.606.321L6.735 7H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h9.28a2 2 0 0 0 1.96-1.604l1.2-6A2 2 0 0 0 14.48 7H10.2l1.103-3.31a1 1 0 0 0-.489-1.552Z" />
+                      <path d="M18 8a1 1 0 0 0-1 1v6a1 1 0 1 0 2 0V9a1 1 0 0 0-1-1Z" />
+                    </svg>
+                  </span>
                   <span>{comment.likes}</span>
                 </button>
                 <button
@@ -449,7 +472,12 @@ function App() {
                   onClick={() => toggleReaction(comment.id, "dislike")}
                   aria-label="Dislike comment"
                 >
-                  <span>👎</span>
+                  <span class="reaction-icon" aria-hidden="true">
+                    <svg viewBox="0 0 20 20" fill="currentColor">
+                      <path d="M9.186 17.862a1 1 0 0 0 1.606-.321L13.265 13H16a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2H6.72a2 2 0 0 0-1.96 1.604l-1.2 6A2 2 0 0 0 5.52 13H9.8L8.697 16.31a1 1 0 0 0 .489 1.552Z" />
+                      <path d="M2 12a1 1 0 0 0 1-1V5a1 1 0 1 0-2 0v6a1 1 0 0 0 1 1Z" />
+                    </svg>
+                  </span>
                   <span>{comment.dislikes}</span>
                 </button>
               </div>

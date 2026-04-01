@@ -21,14 +21,46 @@
   iframe.title = "DiscussIt comments";
   iframe.loading = "lazy";
   iframe.referrerPolicy = "strict-origin-when-cross-origin";
-  iframe.style.width = "100%";
-  iframe.style.minHeight = "320px";
+  iframe.style.display = "block";
+  iframe.style.width = "70%";
+  iframe.style.minHeight = "70vh";
   iframe.style.border = "0";
   iframe.style.borderRadius = "24px";
   iframe.style.overflow = "hidden";
   iframe.style.background = "transparent";
+  iframe.style.margin = "0 auto";
 
   currentScript.insertAdjacentElement("afterend", iframe);
+
+  const mobileQuery = window.matchMedia("(max-width: 900px)");
+
+  const applyResponsiveFrameStyles = () => {
+    if (mobileQuery.matches) {
+      iframe.style.width = "100vw";
+      iframe.style.maxWidth = "100vw";
+      iframe.style.minHeight = "100vh";
+      iframe.style.height = "100vh";
+      iframe.style.borderRadius = "0";
+      iframe.style.margin = "0";
+      iframe.style.position = "relative";
+      iframe.style.left = "50%";
+      iframe.style.transform = "translateX(-50%)";
+      return;
+    }
+
+    iframe.style.width = "70%";
+    iframe.style.maxWidth = "none";
+    iframe.style.minHeight = "70vh";
+    iframe.style.height = "";
+    iframe.style.borderRadius = "24px";
+    iframe.style.margin = "0 auto";
+    iframe.style.position = "relative";
+    iframe.style.left = "0";
+    iframe.style.transform = "none";
+  };
+
+  applyResponsiveFrameStyles();
+  mobileQuery.addEventListener("change", applyResponsiveFrameStyles);
 
   window.addEventListener("message", function (event) {
     if (event.origin !== widgetOrigin) {
@@ -36,6 +68,11 @@
     }
 
     if (!event.data || event.data.type !== "discussit:height") {
+      return;
+    }
+
+    if (mobileQuery.matches) {
+      iframe.style.height = "100vh";
       return;
     }
 
