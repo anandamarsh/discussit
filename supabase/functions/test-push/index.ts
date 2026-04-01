@@ -1,5 +1,6 @@
 import webpush from "npm:web-push@3.6.7";
 
+// Public endpoint used to validate that a browser subscription can receive push.
 type PushSubscriptionPayload = {
   endpoint: string;
   expirationTime?: number | null;

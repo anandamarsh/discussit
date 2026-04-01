@@ -1,1 +1,16 @@
 project_id = "weittmbivvalrfyvhjak"
+
+[functions.post-comment]
+verify_jwt = false
+
+[functions.react-comment]
+verify_jwt = false
+
+[functions.save-push-subscription]
+verify_jwt = false
+
+[functions.test-push]
+verify_jwt = false
+
+[functions.push-config]
+verify_jwt = false
