@@ -123,31 +123,13 @@ body {
   gap: 14px;
 }
 
-.thread-actions {
-  display: flex;
-  justify-content: flex-start;
-}
-
-.thread-new-comment {
-  width: fit-content;
-  padding: 10px 14px;
-  border: 0;
-  border-radius: 999px;
-  background: #facc15;
-  color: #1a1a1a;
-  font: inherit;
-  font-size: 0.84rem;
-  font-weight: 800;
-  cursor: pointer;
-}
-
 .comment-card {
   padding: 0 0 14px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .comment-topline strong {
-  color: #f9fafb;
+  color: #facc15;
   font-size: 0.96rem;
 }
 

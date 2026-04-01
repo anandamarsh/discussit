@@ -439,11 +439,6 @@ function App() {
         ) : null}
 
         <section class="thread-list">
-          <div class="thread-actions">
-            <button type="button" class="thread-new-comment" onClick={() => setComposerOpen(true)}>
-              Add Comment
-            </button>
-          </div>
           {comments.length === 0 ? null : comments.map((comment) => (
             <article class="comment-card" key={comment.id}>
               <div class="comment-topline">
