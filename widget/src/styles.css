@@ -12,6 +12,8 @@
 body {
   margin: 0;
   background: transparent;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
 .widget-shell {
@@ -141,6 +143,7 @@ body {
 .comment-card p {
   margin: 0;
   color: #d1d5db;
+  font-size: 0.95rem;
   line-height: 1.5;
 }
 
