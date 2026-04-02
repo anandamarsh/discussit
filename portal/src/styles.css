@@ -647,6 +647,7 @@ button {
 }
 
 .settings-switch input:checked + .settings-switch-track .settings-switch-thumb {
+  background: #0f172a;
   transform: translateX(1.4rem);
 }
 
