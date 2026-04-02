@@ -178,7 +178,7 @@ body {
   color: #facc15;
 }
 
-@media (max-width: 560px) {
+@media (max-width: 560px), (max-width: 1023px) and (orientation: landscape) and (pointer: coarse) {
   .widget-card {
     padding: 12px 14px 18px;
   }
