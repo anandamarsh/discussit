@@ -419,6 +419,16 @@ button {
   cursor: pointer;
 }
 
+.reaction-icon-svg {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+}
+
+.reaction-icon-svg.is-down {
+  transform: rotate(180deg);
+}
+
 .reaction-chip.is-active {
   border-color: rgba(250, 204, 21, 0.55);
   background: rgba(250, 204, 21, 0.12);
