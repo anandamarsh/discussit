@@ -29,6 +29,30 @@ function moderatorPortalUrl(pageUrl: string) {
   return url.toString();
 }
 
+function gameLabelFromPageUrl(pageUrl: string) {
+  try {
+    const url = new URL(pageUrl);
+    const host = url.hostname.replace(/^www\./, "").replace(/\.vercel\.app$/, "");
+    const pathSegments = url.pathname.split("/").filter(Boolean);
+    const raw = pathSegments.length > 0 ? pathSegments[pathSegments.length - 1] : host;
+    const normalized = raw
+      .replace(/[-_]+/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+
+    if (!normalized) {
+      return "Interactive Maths";
+    }
+
+    return normalized
+      .split(" ")
+      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+      .join(" ");
+  } catch {
+    return "Interactive Maths";
+  }
+}
+
 function json(status: number, body: Record<string, unknown>) {
   return new Response(JSON.stringify(body), {
     status,
@@ -180,6 +204,7 @@ Deno.serve(async (request) => {
 
   if (vapidPublicKey && vapidPrivateKey) {
     webpush.setVapidDetails(vapidSubject, vapidPublicKey, vapidPrivateKey);
+    const gameLabel = gameLabelFromPageUrl(pageUrl);
 
     const { data: subscriptions, error: subscriptionError } = await admin
       .from("push_subscriptions")
@@ -187,7 +212,7 @@ Deno.serve(async (request) => {
 
     if (!subscriptionError && subscriptions?.length) {
       const notificationPayload = JSON.stringify({
-        title: "DiscussIt Moderator",
+        title: `New comment on ${gameLabel}`,
         body: `${data.author_name} posted a new comment`,
         url: moderatorPortalUrl(pageUrl),
         tag: `comment-${data.id}`,
