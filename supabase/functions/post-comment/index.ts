@@ -20,6 +20,10 @@ type StoredPushSubscription = {
   expiration_time?: number | null;
   keys_auth: string;
   keys_p256dh: string;
+  app_id?: string | null;
+  app_name?: string | null;
+  app_origin?: string | null;
+  app_scope?: string | null;
 };
 
 function moderatorPortalUrl(pageUrl: string) {
@@ -27,6 +31,17 @@ function moderatorPortalUrl(pageUrl: string) {
   const url = new URL(baseUrl);
   url.searchParams.set("page", pageUrl);
   return url.toString();
+}
+
+function shouldNotifySubscription(subscription: StoredPushSubscription, pageOrigin: string) {
+  const appId = subscription.app_id ?? "";
+  const appOrigin = subscription.app_origin ?? "";
+  return appId === "discussit-moderator" || appOrigin === pageOrigin;
+}
+
+function notificationTargetUrl(subscription: StoredPushSubscription, pageUrl: string) {
+  const appId = subscription.app_id ?? "";
+  return appId === "discussit-moderator" ? moderatorPortalUrl(pageUrl) : pageUrl;
 }
 
 function gameLabelFromPageUrl(pageUrl: string) {
@@ -208,18 +223,22 @@ Deno.serve(async (request) => {
 
     const { data: subscriptions, error: subscriptionError } = await admin
       .from("push_subscriptions")
-      .select("endpoint, expiration_time, keys_auth, keys_p256dh");
+      .select("endpoint, expiration_time, keys_auth, keys_p256dh, app_id, app_name, app_origin, app_scope");
 
     if (!subscriptionError && subscriptions?.length) {
-      const notificationPayload = JSON.stringify({
-        title: `New comment on ${gameLabel}`,
-        body: `${data.author_name} posted a new comment`,
-        url: moderatorPortalUrl(pageUrl),
-        tag: `comment-${data.id}`,
-      });
-
       await Promise.all(
         subscriptions.map(async (subscription: StoredPushSubscription) => {
+          if (!shouldNotifySubscription(subscription, parsedPageUrl.origin)) {
+            return;
+          }
+
+          const notificationPayload = JSON.stringify({
+            title: `New comment on ${gameLabel}`,
+            body: `${data.author_name} posted a new comment`,
+            url: notificationTargetUrl(subscription, pageUrl),
+            tag: `comment-${data.id}`,
+          });
+
           try {
             await webpush.sendNotification(
               {

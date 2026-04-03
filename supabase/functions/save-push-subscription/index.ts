@@ -17,6 +17,13 @@ type PushSubscriptionPayload = {
   };
 };
 
+type AppPayload = {
+  appId?: string;
+  appName?: string;
+  appOrigin?: string;
+  appScope?: string;
+};
+
 function json(status: number, body: Record<string, unknown>) {
   return new Response(JSON.stringify(body), {
     status,
@@ -40,7 +47,7 @@ Deno.serve(async (request) => {
     return json(500, { error: "Missing Supabase server configuration" });
   }
 
-  let payload: { subscription?: PushSubscriptionPayload };
+  let payload: { subscription?: PushSubscriptionPayload; app?: AppPayload };
 
   try {
     payload = await request.json();
@@ -53,6 +60,11 @@ Deno.serve(async (request) => {
     return json(400, { error: "Missing push subscription" });
   }
 
+  const appId = payload.app?.appId?.trim() || "discussit-moderator";
+  const appName = payload.app?.appName?.trim() || "DiscussIt Moderator";
+  const appOrigin = payload.app?.appOrigin?.trim() || "https://discussit-portal.vercel.app";
+  const appScope = payload.app?.appScope?.trim() || "https://discussit-portal.vercel.app/";
+
   const admin = createClient(supabaseUrl, serviceRoleKey, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
@@ -63,6 +75,10 @@ Deno.serve(async (request) => {
       expiration_time: subscription.expirationTime ?? null,
       keys_auth: subscription.keys.auth,
       keys_p256dh: subscription.keys.p256dh,
+      app_id: appId,
+      app_name: appName,
+      app_origin: appOrigin,
+      app_scope: appScope,
     },
     { onConflict: "endpoint" },
   );

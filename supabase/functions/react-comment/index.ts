@@ -22,6 +22,10 @@ type StoredPushSubscription = {
   expiration_time?: number | null;
   keys_auth: string;
   keys_p256dh: string;
+  app_id?: string | null;
+  app_name?: string | null;
+  app_origin?: string | null;
+  app_scope?: string | null;
 };
 
 function moderatorPortalUrl(pageUrl: string) {
@@ -39,6 +43,17 @@ function moderatorPortalOrigin() {
   } catch {
     return "https://discussit-portal.vercel.app";
   }
+}
+
+function shouldNotifySubscription(subscription: StoredPushSubscription, pageOrigin: string) {
+  const appId = subscription.app_id ?? "";
+  const appOrigin = subscription.app_origin ?? "";
+  return appId === "discussit-moderator" || appOrigin === pageOrigin;
+}
+
+function notificationTargetUrl(subscription: StoredPushSubscription, pageUrl: string) {
+  const appId = subscription.app_id ?? "";
+  return appId === "discussit-moderator" ? moderatorPortalUrl(pageUrl) : pageUrl;
 }
 
 function json(status: number, body: Record<string, unknown>) {
@@ -141,19 +156,23 @@ Deno.serve(async (request) => {
 
     const { data: subscriptions, error: subscriptionError } = await admin
       .from("push_subscriptions")
-      .select("endpoint, expiration_time, keys_auth, keys_p256dh");
+      .select("endpoint, expiration_time, keys_auth, keys_p256dh, app_id, app_name, app_origin, app_scope");
 
     if (!subscriptionError && subscriptions?.length) {
-      const verb = reaction === "like" ? "liked" : "disliked";
-      const notificationPayload = JSON.stringify({
-        title: "DiscussIt Moderator",
-        body: `${actorName} ${verb} a comment by ${updated.author_name}`,
-        url: moderatorPortalUrl(pageUrl),
-        tag: `reaction-${updated.id}-${reaction}`,
-      });
-
       await Promise.all(
         subscriptions.map(async (subscription: StoredPushSubscription) => {
+          if (!shouldNotifySubscription(subscription, parsedPageUrl.origin)) {
+            return;
+          }
+
+          const verb = reaction === "like" ? "liked" : "disliked";
+          const notificationPayload = JSON.stringify({
+            title: "DiscussIt Moderator",
+            body: `${actorName} ${verb} a comment by ${updated.author_name}`,
+            url: notificationTargetUrl(subscription, pageUrl),
+            tag: `reaction-${updated.id}-${reaction}`,
+          });
+
           try {
             await webpush.sendNotification(
               {

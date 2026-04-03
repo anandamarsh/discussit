@@ -13,6 +13,23 @@ type SerializedPushSubscription = {
   };
 };
 
+type AppPushMetadata = {
+  appId: string;
+  appName: string;
+  appOrigin: string;
+  appScope: string;
+};
+
+function getAppPushMetadata(): AppPushMetadata {
+  const scopeUrl = new URL("./", window.location.href);
+  return {
+    appId: "discussit-moderator",
+    appName: "DiscussIt Moderator",
+    appOrigin: window.location.origin,
+    appScope: scopeUrl.href,
+  };
+}
+
 function requirePushConfig() {
   if (!supabaseUrl || !supabaseAnonKey || !vapidPublicKey) {
     throw new Error("Push notifications are not configured for this app.");
@@ -64,12 +81,17 @@ function serializePushSubscription(subscription: PushSubscription): SerializedPu
 
 async function savePushSubscription(subscription: PushSubscription) {
   const payload = serializePushSubscription(subscription);
+  const app = getAppPushMetadata();
   const { error } = await portalSupabase.from("push_subscriptions").upsert(
     {
       endpoint: payload.endpoint,
       expiration_time: payload.expirationTime ?? null,
       keys_auth: payload.keys.auth,
       keys_p256dh: payload.keys.p256dh,
+      app_id: app.appId,
+      app_name: app.appName,
+      app_origin: app.appOrigin,
+      app_scope: app.appScope,
     },
     { onConflict: "endpoint" },
   );
@@ -116,6 +138,7 @@ export async function sendTestPush() {
   }
 
   const subscription = await ensurePushSubscription();
+  const app = getAppPushMetadata();
   const response = await fetch(`${supabaseUrl}/functions/v1/test-push`, {
     method: "POST",
     headers: {
@@ -125,10 +148,11 @@ export async function sendTestPush() {
     },
     body: JSON.stringify({
       subscription: serializePushSubscription(subscription),
-      title: "DiscussIt Moderator",
+      title: app.appName,
       body: "Moderator push notifications are working.",
-      url: window.location.origin,
+      url: app.appScope,
       tag: "discussit-moderator-test-push",
+      app,
     }),
   });
 
