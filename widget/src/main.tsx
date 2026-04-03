@@ -152,7 +152,7 @@ function App() {
         .from("comments")
         .select("id, author_name, body, created_at, likes, dislikes")
         .eq("page_url", pageUrl)
-        .order("created_at", { ascending: true });
+        .order("created_at", { ascending: false });
 
       if (!controller.signal.aborted && !error) {
         setComments(
@@ -222,7 +222,6 @@ function App() {
             }
 
             return [
-              ...current,
               {
                 id: inserted.id,
                 authorName: inserted.author_name,
@@ -231,6 +230,7 @@ function App() {
                 likes: inserted.likes,
                 dislikes: inserted.dislikes,
               },
+              ...current,
             ];
           });
         },

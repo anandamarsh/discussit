@@ -321,7 +321,7 @@ function App() {
 
     return feed
       .filter((item) => item.pageUrl === selectedUrl)
-      .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   }, [feed, selectedUrl, unreadFeed]);
 
   const currentTitle = selectedUrl ? labelForUrl(selectedUrl) : "Moderator Panel";
