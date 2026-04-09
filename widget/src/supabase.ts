@@ -1,8 +1,12 @@
 import { createClient } from "@supabase/supabase-js";
+import { readTrimmedEnv } from "../../shared/supabaseEnv";
+
+const supabaseUrl = readTrimmedEnv(import.meta.env.VITE_SUPABASE_URL);
+const supabaseAnonKey = readTrimmedEnv(import.meta.env.VITE_SUPABASE_ANON_KEY);
 
 export const widgetSupabase = createClient(
-  import.meta.env.VITE_SUPABASE_URL,
-  import.meta.env.VITE_SUPABASE_ANON_KEY,
+  supabaseUrl,
+  supabaseAnonKey,
 );
 
 export async function postComment(input: {

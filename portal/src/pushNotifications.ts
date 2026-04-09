@@ -1,8 +1,9 @@
 import { portalSupabase } from "./supabase";
+import { readTrimmedEnv } from "../../shared/supabaseEnv";
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-const vapidPublicKey = import.meta.env.VITE_PUSH_VAPID_PUBLIC_KEY;
+const supabaseUrl = readTrimmedEnv(import.meta.env.VITE_SUPABASE_URL);
+const supabaseAnonKey = readTrimmedEnv(import.meta.env.VITE_SUPABASE_ANON_KEY);
+const vapidPublicKey = readTrimmedEnv(import.meta.env.VITE_PUSH_VAPID_PUBLIC_KEY);
 
 type SerializedPushSubscription = {
   endpoint: string;

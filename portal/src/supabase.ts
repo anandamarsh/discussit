@@ -1,7 +1,8 @@
 import { createClient } from "@supabase/supabase-js";
+import { readTrimmedEnv } from "../../shared/supabaseEnv";
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const supabaseUrl = readTrimmedEnv(import.meta.env.VITE_SUPABASE_URL);
+const supabaseAnonKey = readTrimmedEnv(import.meta.env.VITE_SUPABASE_ANON_KEY);
 
 export const portalSupabase = createClient(
   supabaseUrl,
