@@ -1,5 +1,10 @@
 import { render } from "preact";
 import { useEffect, useMemo, useState } from "preact/hooks";
+import {
+  loadSharedCommenter,
+  persistSharedCommenter,
+  readStoredCommenterSync,
+} from "./commenterStorage";
 import { postComment, updateCommentReactions, widgetSupabase } from "./supabase";
 import "./styles.css";
 
@@ -13,10 +18,6 @@ type CommentItem = {
 };
 
 const initialComments: CommentItem[] = [];
-
-function commenterStorageKey() {
-  return "discussit:commenter:v1";
-}
 
 function reactionsStorageKey(pageUrl: string) {
   return `discussit:reactions:v1:${pageUrl}`;
@@ -73,34 +74,14 @@ function App() {
   const [comments, setComments] = useState<CommentItem[]>(() => {
     return initialComments;
   });
-  const [authorName, setAuthorName] = useState(() => {
-    try {
-      const saved = window.localStorage.getItem(commenterStorageKey());
-      if (!saved) {
-        return "";
-      }
-      const parsed = JSON.parse(saved) as { authorName?: string };
-      return parsed.authorName ?? "";
-    } catch {
-      return "";
-    }
-  });
-  const [email, setEmail] = useState(() => {
-    try {
-      const saved = window.localStorage.getItem(commenterStorageKey());
-      if (!saved) {
-        return "";
-      }
-      const parsed = JSON.parse(saved) as { email?: string };
-      return parsed.email ?? "";
-    } catch {
-      return "";
-    }
-  });
+  const storedCommenter = useMemo(() => readStoredCommenterSync(), []);
+  const [authorName, setAuthorName] = useState(storedCommenter.authorName);
+  const [email, setEmail] = useState(storedCommenter.email);
   const [body, setBody] = useState("");
   const [composerOpen, setComposerOpen] = useState(false);
   const [submitError, setSubmitError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [commenterLoaded, setCommenterLoaded] = useState(false);
   const [reactions, setReactions] = useState<Record<string, "like" | "dislike" | null>>(() => {
     try {
       const saved = window.localStorage.getItem(reactionsStorageKey(pageUrl));
@@ -296,14 +277,27 @@ function App() {
   }, [pageUrl, reactions]);
 
   useEffect(() => {
-    window.localStorage.setItem(
-      commenterStorageKey(),
-      JSON.stringify({
-        authorName,
-        email,
-      }),
-    );
-  }, [authorName, email]);
+    if (!commenterLoaded) {
+      return;
+    }
+
+    void persistSharedCommenter({ authorName, email });
+  }, [authorName, commenterLoaded, email]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    void loadSharedCommenter().then((commenter) => {
+      if (cancelled) return;
+      setAuthorName(commenter.authorName);
+      setEmail(commenter.email);
+      setCommenterLoaded(true);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const submitComment = () => {
     if (!body.trim() || submitting) {
