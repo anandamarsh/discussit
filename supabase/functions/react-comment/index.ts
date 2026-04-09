@@ -70,6 +70,25 @@ function parseAllowedList(name: string) {
     .filter(Boolean);
 }
 
+function withDefaultEntries(values: string[], defaults: string[]) {
+  return [...new Set([...values, ...defaults])];
+}
+
+function allowedCommentOrigins() {
+  return withDefaultEntries(parseAllowedList("ALLOWED_COMMENT_ORIGINS"), [
+    "https://discussit-widget.vercel.app",
+    "http://localhost:5001",
+  ]);
+}
+
+function allowedCommentPageOrigins() {
+  return withDefaultEntries(parseAllowedList("ALLOWED_COMMENT_PAGE_ORIGINS"), [
+    "https://seemaths.com",
+    "https://www.seemaths.com",
+    "http://localhost:4000",
+  ]);
+}
+
 Deno.serve(async (request) => {
   if (request.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -123,8 +142,8 @@ Deno.serve(async (request) => {
       ? new URL(refererHeader).origin
       : "";
 
-  const allowedOrigins = parseAllowedList("ALLOWED_COMMENT_ORIGINS");
-  const allowedPageOrigins = parseAllowedList("ALLOWED_COMMENT_PAGE_ORIGINS");
+  const allowedOrigins = allowedCommentOrigins();
+  const allowedPageOrigins = allowedCommentPageOrigins();
   const isModeratorPortal = callerOrigin === moderatorPortalOrigin();
 
   if (!callerOrigin || (!allowedOrigins.includes(callerOrigin) && !isModeratorPortal)) {
