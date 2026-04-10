@@ -1,9 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import ReactDOM from "react-dom/client";
 import {
-  loadAnalyticsGameEvents,
   loadAnalyticsSessions,
-  type AnalyticsGameEventRecord,
   portalSupabase,
   type AnalyticsSessionRecord,
   updateCommentReactions,
@@ -242,32 +240,6 @@ function canonicalScopeKeyFromUrl(value: string) {
   return `${url.origin}${pathname}`;
 }
 
-function describeAnalyticsEvent(item: AnalyticsGameEventRecord) {
-  const payload = item.payload_json ?? {};
-  switch (item.event_type) {
-    case "level_started":
-      return `Level ${typeof payload.level === "number" || typeof payload.level === "string" ? payload.level : ""} started`.trim();
-    case "level_finished":
-      return `Level ${typeof payload.level === "number" || typeof payload.level === "string" ? payload.level : ""} finished`.trim();
-    case "question_answered":
-      return `Question answered${payload.correct === true ? " correctly" : payload.correct === false ? " incorrectly" : ""}`;
-    case "level_completed":
-      return `Level ${typeof payload.level === "number" || typeof payload.level === "string" ? payload.level : ""} completed`.trim();
-    case "game_completed":
-      return "Game completed";
-    case "monster_round_started":
-      return "Monster round started";
-    case "monster_round_completed":
-      return "Monster round completed";
-    case "platinum_round_started":
-      return "Platinum round started";
-    case "platinum_round_completed":
-      return "Platinum round completed";
-    default:
-      return item.event_type.replace(/_/g, " ");
-  }
-}
-
 const analyticsChartPalette = [
   "#fde047",
   "#38bdf8",
@@ -448,7 +420,6 @@ function App() {
   const [analyticsRangeDays, setAnalyticsRangeDays] = useState<RangeDays>(7);
   const [analyticsBreakdownMode, setAnalyticsBreakdownMode] = useState<BreakdownMode>("day");
   const [analyticsSessions, setAnalyticsSessions] = useState<AnalyticsSessionRecord[]>([]);
-  const [analyticsGameEvents, setAnalyticsGameEvents] = useState<AnalyticsGameEventRecord[]>([]);
   const [analyticsLoading, setAnalyticsLoading] = useState(true);
   const [reactions, setReactions] = useState<Record<string, "like" | "dislike" | null>>(() => {
     if (typeof window === "undefined") {
@@ -611,21 +582,16 @@ function App() {
 
     const loadSessions = async () => {
       try {
-        const [sessions, events] = await Promise.all([
-          loadAnalyticsSessions(analyticsRangeDays),
-          loadAnalyticsGameEvents(analyticsRangeDays),
-        ]);
+        const sessions = await loadAnalyticsSessions(analyticsRangeDays);
         if (!active) {
           return;
         }
         setAnalyticsSessions(sessions);
-        setAnalyticsGameEvents(events);
       } catch {
         if (!active) {
           return;
         }
         setAnalyticsSessions([]);
-        setAnalyticsGameEvents([]);
       } finally {
         if (active) {
           setAnalyticsLoading(false);
@@ -837,14 +803,6 @@ function App() {
     return Array.from(groups.values()).sort(compareMenuEntries);
   }, [analyticsScopeMap, urlGroups]);
 
-  const analyticsGameScopeById = useMemo(() => {
-    const scopeByGameId = new Map<string, string>();
-    for (const item of analyticsSessions) {
-      scopeByGameId.set(item.game_id, analyticsScopeKey(item));
-    }
-    return scopeByGameId;
-  }, [analyticsSessions]);
-
   const visibleAnalyticsSessions = useMemo(() => {
     if (!selectedUrl) {
       return analyticsSessions;
@@ -853,14 +811,6 @@ function App() {
     return analyticsSessions.filter((item) =>
       analyticsScopeKey(item) === selectedUrl);
   }, [analyticsSessions, selectedUrl]);
-
-  const visibleAnalyticsGameEvents = useMemo(() => {
-    if (!selectedUrl) {
-      return analyticsGameEvents;
-    }
-
-    return analyticsGameEvents.filter((item) => analyticsGameScopeById.get(item.game_id) === selectedUrl);
-  }, [analyticsGameEvents, analyticsGameScopeById, selectedUrl]);
 
   const currentTitle = selectedScopeLabel
     ? `${selectedScopeLabel} ${viewMode === "comments" ? "Comments" : "Analytics"}`
@@ -1138,40 +1088,6 @@ function App() {
     () => visibleAnalyticsSessions.slice(0, 12),
     [visibleAnalyticsSessions],
   );
-
-  const recentAnalyticsGameEvents = useMemo(
-    () => visibleAnalyticsGameEvents.slice(0, 12),
-    [visibleAnalyticsGameEvents],
-  );
-
-  const roundEventSummary = useMemo(() => {
-    let roundsCompleted = 0;
-    let levelsCompleted = 0;
-    let gamesCompleted = 0;
-
-    for (const item of visibleAnalyticsGameEvents) {
-      if (
-        item.event_type === "monster_round_started"
-        || item.event_type === "monster_round_completed"
-        || item.event_type === "platinum_round_started"
-        || item.event_type === "platinum_round_completed"
-      ) {
-        roundsCompleted += 1;
-      }
-      if (item.event_type === "level_completed") {
-        levelsCompleted += 1;
-      }
-      if (item.event_type === "game_completed") {
-        gamesCompleted += 1;
-      }
-    }
-
-    return {
-      roundsCompleted,
-      levelsCompleted,
-      gamesCompleted,
-    };
-  }, [visibleAnalyticsGameEvents]);
 
   const siteVisitTableRows = useMemo(
     () => [{
@@ -1806,132 +1722,24 @@ function App() {
               </div>
 
               <div className="analytics-feed-grid">
-                <section className="analytics-card">
-                  <div className="analytics-card-header">
-                    <div>
-                      <p className="portal-kicker">{isSiteAnalyticsScope ? "Portal Activity" : "Game Progress"}</p>
-                      <h2>{isSiteAnalyticsScope ? "See Maths Activity" : "Rounds And Completions"}</h2>
-                    </div>
-                  </div>
-                  {isSiteAnalyticsScope ? (
-                    <div className="analytics-overview-grid analytics-overview-grid-compact">
-                      <article className="analytics-stat-card">
-                        <span className="analytics-stat-label">Visits</span>
-                        <strong>{analyticsSummary.totalSessions}</strong>
-                        <small>See Maths page visits in this window</small>
-                      </article>
-                      <article className="analytics-stat-card">
-                        <span className="analytics-stat-label">Visitors</span>
-                        <strong>{analyticsSummary.uniquePlayers}</strong>
-                        <small>Anonymous browsers reaching the portal</small>
-                      </article>
-                      <article className="analytics-stat-card">
-                        <span className="analytics-stat-label">Live</span>
-                        <strong>{analyticsSummary.liveCount}</strong>
-                        <small>Visitors active on See Maths right now</small>
-                      </article>
-                      <article className="analytics-stat-card">
-                        <span className="analytics-stat-label">Avg Visit</span>
-                        <strong>{formatDuration(analyticsSummary.averageDurationSeconds)}</strong>
-                        <small>Average time spent before leaving or launching</small>
-                      </article>
-                    </div>
-                  ) : (
-                    <div className="analytics-overview-grid analytics-overview-grid-compact">
-                      <article className="analytics-stat-card">
-                        <span className="analytics-stat-label">Rounds</span>
-                        <strong>{roundEventSummary.roundsCompleted}</strong>
-                        <small>Completed monster or platinum rounds</small>
-                      </article>
-                      <article className="analytics-stat-card">
-                        <span className="analytics-stat-label">Levels</span>
-                        <strong>{roundEventSummary.levelsCompleted}</strong>
-                        <small>Levels cleared</small>
-                      </article>
-                      <article className="analytics-stat-card">
-                        <span className="analytics-stat-label">Games</span>
-                        <strong>{roundEventSummary.gamesCompleted}</strong>
-                        <small>Games completed</small>
-                      </article>
-                      <article className="analytics-stat-card">
-                        <span className="analytics-stat-label">Levels</span>
-                        <strong>{roundEventSummary.levelsCompleted + roundEventSummary.gamesCompleted}</strong>
-                        <small>Level and finale milestones</small>
-                      </article>
-                    </div>
-                  )}
-                  <div className="analytics-card-header">
-                    <div>
-                      <p className="portal-kicker">What Happened</p>
-                      <h2>{isSiteAnalyticsScope ? "Recent Site Visits" : "Recent Round Events"}</h2>
-                    </div>
-                  </div>
-                  <div className="analytics-recent-list">
-                    {isSiteAnalyticsScope ? (
-                      recentAnalyticsSessions.length === 0 ? (
-                        <div className="empty-state analytics-empty">No See Maths visits yet.</div>
-                      ) : (
-                        recentAnalyticsSessions.slice(0, 8).map((item) => (
-                          <article key={`site-${item.session_id}`} className="analytics-recent-item">
-                            <div>
-                              <strong>See Maths</strong>
-                              <span>{mapLocationLabel(item)}</span>
-                            </div>
-                            <div className="analytics-recent-meta">
-                              <small>{formatDuration(effectiveSessionDurationSeconds(item))}</small>
-                              <small>{formatTimestamp(item.started_at)}</small>
-                            </div>
-                          </article>
-                        ))
-                      )
-                    ) : recentAnalyticsGameEvents.filter((item) =>
-                      item.event_type === "level_started"
-                      || item.event_type === "level_finished"
-                      || item.event_type === "monster_round_started"
-                      || item.event_type === "monster_round_completed"
-                      || item.event_type === "platinum_round_started"
-                      || item.event_type === "platinum_round_completed"
-                      || item.event_type === "level_completed"
-                      || item.event_type === "game_completed").length === 0 ? (
-                        <div className="empty-state analytics-empty">No round or completion events yet.</div>
-                      ) : (
-                        recentAnalyticsGameEvents
-                          .filter((item) =>
-                            item.event_type === "level_started"
-                            || item.event_type === "level_finished"
-                            || item.event_type === "monster_round_started"
-                            || item.event_type === "monster_round_completed"
-                            || item.event_type === "platinum_round_started"
-                            || item.event_type === "platinum_round_completed"
-                            || item.event_type === "level_completed"
-                            || item.event_type === "game_completed")
-                          .slice(0, 8)
-                          .map((item) => (
-                            <article key={`summary-${item.id}`} className="analytics-recent-item">
-                              <div>
-                                <strong>{item.game_name}</strong>
-                                <span>{describeAnalyticsEvent(item)}</span>
-                              </div>
-                              <div className="analytics-recent-meta">
-                                <small>{item.event_type}</small>
-                                <small>{formatTimestamp(item.occurred_at)}</small>
-                              </div>
-                            </article>
-                          ))
-                      )}
-                  </div>
-                </section>
-
                 <section className="analytics-card analytics-feed-card">
                   <div className="analytics-card-header">
                     <div>
                       <p className="portal-kicker">Recent</p>
-                      <h2>Recent Activity</h2>
+                      <h2>
+                        {isSiteAnalyticsScope
+                          ? "Recent Site Visits"
+                          : isCombinedAnalyticsScope
+                            ? "Recent Activity"
+                            : "Recent Activity"}
+                      </h2>
                     </div>
                   </div>
                   <div className="analytics-recent-list">
                     {recentAnalyticsSessions.length === 0 ? (
-                      <div className="empty-state analytics-empty">No activity in this window.</div>
+                      <div className="empty-state analytics-empty">
+                        {isSiteAnalyticsScope ? "No See Maths visits yet." : "No activity in this window."}
+                      </div>
                     ) : (
                       recentAnalyticsSessions.map((item) => (
                         <article key={item.session_id} className="analytics-recent-item">
@@ -1942,33 +1750,6 @@ function App() {
                           <div className="analytics-recent-meta">
                             <small>{formatDuration(effectiveSessionDurationSeconds(item))}</small>
                             <small>{formatTimestamp(item.started_at)}</small>
-                          </div>
-                        </article>
-                      ))
-                    )}
-                  </div>
-                </section>
-
-                <section className="analytics-card analytics-feed-card">
-                  <div className="analytics-card-header">
-                    <div>
-                      <p className="portal-kicker">Events</p>
-                      <h2>Recent Game Events</h2>
-                    </div>
-                  </div>
-                  <div className="analytics-recent-list">
-                    {recentAnalyticsGameEvents.length === 0 ? (
-                      <div className="empty-state analytics-empty">No game events yet.</div>
-                    ) : (
-                      recentAnalyticsGameEvents.map((item) => (
-                        <article key={item.id} className="analytics-recent-item">
-                          <div>
-                            <strong>{item.game_name}</strong>
-                            <span>{describeAnalyticsEvent(item)}</span>
-                          </div>
-                          <div className="analytics-recent-meta">
-                            <small>{item.event_type}</small>
-                            <small>{formatTimestamp(item.occurred_at)}</small>
                           </div>
                         </article>
                       ))
