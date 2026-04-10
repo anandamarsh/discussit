@@ -66,6 +66,9 @@ function formatTimestamp(value: string) {
 function labelForUrl(pageUrl: string) {
   try {
     const url = new URL(pageUrl);
+    if (url.hostname === "seemaths.com" || url.hostname === "www.seemaths.com" || url.hostname === "interactive-maths.vercel.app") {
+      return "See Maths";
+    }
     const hostname = url.hostname.replace(/\.vercel\.app$/, "");
     return `${hostname}${url.pathname === "/" ? "" : url.pathname}`;
   } catch {
