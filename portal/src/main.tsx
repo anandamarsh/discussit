@@ -50,6 +50,61 @@ const moderatorEmail = "amarsh.anand@gmail.com";
 const autoSignInAttemptKey = "discussit:moderator:auto-signin-attempted";
 const notificationPreferenceKey = "discussit:moderator:notifications";
 const roundNotificationPreferenceKey = "discussit:moderator:notify-round-events";
+const knownSiteHosts = new Set(["seemaths.com", "www.seemaths.com", "interactive-maths.vercel.app"]);
+const knownAppScopes = [
+  {
+    scopeKey: "https://maths-angle-explorer.vercel.app/",
+    label: "Angle Explorer",
+    subtitle: "https://maths-angle-explorer.vercel.app/",
+    isSite: false,
+  },
+  {
+    scopeKey: "https://maths-distance-calculator.vercel.app/",
+    label: "Trail Distances",
+    subtitle: "https://maths-distance-calculator.vercel.app/",
+    isSite: false,
+  },
+  {
+    scopeKey: "https://maths-game-template.vercel.app/",
+    label: "Ripples",
+    subtitle: "https://maths-game-template.vercel.app/",
+    isSite: false,
+  },
+  {
+    scopeKey: "https://locicomplex.com/",
+    label: "Loci Complex",
+    subtitle: "https://locicomplex.com/",
+    isSite: false,
+  },
+  {
+    scopeKey: "__site__",
+    label: "See Maths",
+    subtitle: "Site visitors and home page activity",
+    isSite: true,
+  },
+] as const;
+const knownAppScopeByKey = new Map<string, (typeof knownAppScopes)[number]>(
+  knownAppScopes.map((item) => [item.scopeKey, item]),
+);
+
+function parseUrlLike(value: string) {
+  try {
+    return new URL(value);
+  } catch {
+    if (/^[a-z0-9.-]+\.[a-z]{2,}(\/.*)?$/i.test(value)) {
+      try {
+        return new URL(`https://${value}`);
+      } catch {
+        return null;
+      }
+    }
+    return null;
+  }
+}
+
+function knownScopeFromValue(value: string) {
+  return knownAppScopeByKey.get(canonicalScopeKeyFromUrl(value));
+}
 
 function reactionsStorageKey() {
   return "discussit:moderator:reactions:v1";
@@ -64,16 +119,25 @@ function formatTimestamp(value: string) {
 }
 
 function labelForUrl(pageUrl: string) {
+  const knownScope = knownScopeFromValue(pageUrl);
+  if (knownScope) {
+    return knownScope.label;
+  }
+
   try {
-    const url = new URL(pageUrl);
-    if (url.hostname === "seemaths.com" || url.hostname === "www.seemaths.com" || url.hostname === "interactive-maths.vercel.app") {
-      return "See Maths";
+    const url = parseUrlLike(pageUrl);
+    if (!url) {
+      return pageUrl;
     }
     const hostname = url.hostname.replace(/\.vercel\.app$/, "");
     return `${hostname}${url.pathname === "/" ? "" : url.pathname}`;
   } catch {
     return pageUrl;
   }
+}
+
+function subtitleForScope(scopeKey: string, fallback: string) {
+  return knownAppScopeByKey.get(scopeKey)?.subtitle ?? fallback;
 }
 
 function formatDuration(seconds: number) {
@@ -130,21 +194,24 @@ function analyticsScopeKey(item: Pick<AnalyticsSessionRecord, "game_id" | "game_
 }
 
 function analyticsScopeLabel(item: Pick<AnalyticsSessionRecord, "game_id" | "game_url" | "shell_url" | "game_name">) {
-  if (item.game_id === "__site__") {
-    return "See Maths";
+  const knownScope = knownScopeFromValue(item.game_url || item.shell_url || item.game_name);
+  if (knownScope) {
+    return knownScope.label;
   }
 
   return item.game_name || labelForUrl(item.game_url || item.shell_url || item.game_name);
 }
 
 function canonicalScopeKeyFromUrl(value: string) {
-  try {
-    const url = new URL(value);
-    const pathname = url.pathname.replace(/\/+$/, "") || "/";
-    return `${url.origin}${pathname}`;
-  } catch {
+  const url = parseUrlLike(value);
+  if (!url) {
     return value;
   }
+  if (knownSiteHosts.has(url.hostname)) {
+    return "__site__";
+  }
+  const pathname = url.pathname.replace(/\/+$/, "") || "/";
+  return `${url.origin}${pathname}`;
 }
 
 function describeAnalyticsEvent(item: AnalyticsGameEventRecord) {
@@ -641,7 +708,10 @@ function App() {
       const current = groups.get(scopeKey) ?? {
         scopeKey,
         label,
-        subtitle: item.game_id === "__site__" ? "Site visitors and home page activity" : (item.game_url || item.shell_url || item.game_name),
+        subtitle: subtitleForScope(
+          scopeKey,
+          item.game_id === "__site__" ? "Site visitors and home page activity" : (item.game_url || item.shell_url || item.game_name),
+        ),
         todayUsage: 0,
         isSite: item.game_id === "__site__",
       };
@@ -673,16 +743,28 @@ function App() {
       isSite: boolean;
     }>();
 
+    for (const item of knownAppScopes) {
+      groups.set(item.scopeKey, {
+        scopeKey: item.scopeKey,
+        label: item.label,
+        subtitle: item.subtitle,
+        unread: 0,
+        totalComments: 0,
+        todayUsage: 0,
+        isSite: item.isSite,
+      });
+    }
+
     for (const group of urlGroups) {
       const label = labelForUrl(group.pageUrl);
       groups.set(group.pageUrl, {
         scopeKey: group.pageUrl,
         label,
-        subtitle: group.pageUrl,
+        subtitle: subtitleForScope(group.pageUrl, group.pageUrl),
         unread: group.unread,
         totalComments: group.total,
         todayUsage: 0,
-        isSite: false,
+        isSite: group.pageUrl === "__site__",
       });
     }
 
