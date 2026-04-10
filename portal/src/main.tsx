@@ -160,6 +160,14 @@ function compareMenuEntries(
   return a.label.localeCompare(b.label);
 }
 
+function formatCommentScopeSummary(totalComments: number, todayComments: number) {
+  const totalLabel = `${totalComments} comment${totalComments === 1 ? "" : "s"}`;
+  if (todayComments > 0) {
+    return `${totalLabel} (${todayComments} today)`;
+  }
+  return totalLabel;
+}
+
 function formatDuration(seconds: number) {
   if (seconds < 60) {
     return `${seconds}s`;
@@ -665,20 +673,25 @@ function App() {
   const unreadFeed = useMemo(() => feed.filter((item) => item.status === "Unread"), [feed]);
 
   const urlGroups = useMemo(() => {
-    const groups = new Map<string, { unread: number; total: number }>();
+    const today = new Date();
+    const groups = new Map<string, { unread: number; total: number; today: number }>();
     for (const item of feed) {
       const scopeKey = canonicalScopeKeyFromUrl(item.pageUrl);
-      const current = groups.get(scopeKey) ?? { unread: 0, total: 0 };
+      const current = groups.get(scopeKey) ?? { unread: 0, total: 0, today: 0 };
       current.total += 1;
       if (item.status === "Unread") {
         current.unread += 1;
+      }
+      const createdAt = new Date(item.createdAt);
+      if (!Number.isNaN(createdAt.getTime()) && isSameLocalDay(createdAt, today)) {
+        current.today += 1;
       }
       groups.set(scopeKey, current);
     }
 
     return Array.from(groups.entries())
       .map(([pageUrl, counts]) => ({ pageUrl, ...counts }))
-      .sort((a, b) => b.unread - a.unread || b.total - a.total || a.pageUrl.localeCompare(b.pageUrl));
+      .sort((a, b) => b.unread - a.unread || b.today - a.today || b.total - a.total || a.pageUrl.localeCompare(b.pageUrl));
   }, [feed]);
 
   const currentFeed = useMemo(() => {
@@ -711,6 +724,17 @@ function App() {
       return isSameLocalDay(startedAt, today) ? count + 1 : count;
     }, 0);
   }, [analyticsSessions]);
+
+  const commentsTodayCount = useMemo(() => {
+    const today = new Date();
+    return feed.reduce((count, item) => {
+      const createdAt = new Date(item.createdAt);
+      if (Number.isNaN(createdAt.getTime())) {
+        return count;
+      }
+      return isSameLocalDay(createdAt, today) ? count + 1 : count;
+    }, 0);
+  }, [feed]);
 
   const analyticsScopeMap = useMemo(() => {
     const groups = new Map<string, {
@@ -759,6 +783,7 @@ function App() {
       subtitle: string;
       unread: number;
       totalComments: number;
+      todayComments: number;
       todayUsage: number;
       isSite: boolean;
     }>();
@@ -770,6 +795,7 @@ function App() {
         subtitle: item.subtitle,
         unread: 0,
         totalComments: 0,
+        todayComments: 0,
         todayUsage: 0,
         isSite: item.isSite,
       });
@@ -783,6 +809,7 @@ function App() {
         subtitle: subtitleForScope(group.pageUrl, group.pageUrl),
         unread: group.unread,
         totalComments: group.total,
+        todayComments: group.today,
         todayUsage: 0,
         isSite: group.pageUrl === "__site__",
       });
@@ -795,6 +822,7 @@ function App() {
         subtitle: item.subtitle,
         unread: 0,
         totalComments: 0,
+        todayComments: 0,
         todayUsage: 0,
         isSite: item.isSite,
       };
@@ -1488,7 +1516,11 @@ function App() {
                 >
                   <span className="menu-label">
                     <strong>Home</strong>
-                    <small>{viewMode === "comments" ? "All unread comments" : "Games and site visits today"}</small>
+                    <small>
+                      {viewMode === "comments"
+                        ? formatCommentScopeSummary(feed.length, commentsTodayCount)
+                        : "Games and site visits today"}
+                    </small>
                   </span>
                   <span className="menu-count">{viewMode === "comments" ? unreadFeed.length : analyticsTodayCount}</span>
                 </button>
@@ -1504,7 +1536,11 @@ function App() {
                   >
                     <span className="menu-label">
                       <strong>{group.label}</strong>
-                      <small>{viewMode === "comments" ? group.subtitle : `${group.todayUsage} today`}</small>
+                      <small>
+                        {viewMode === "comments"
+                          ? formatCommentScopeSummary(group.totalComments, group.todayComments)
+                          : `${group.todayUsage} today`}
+                      </small>
                     </span>
                     <span className="menu-count">{viewMode === "comments" ? group.unread : group.todayUsage}</span>
                   </button>
