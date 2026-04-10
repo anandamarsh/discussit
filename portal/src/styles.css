@@ -225,6 +225,10 @@ button {
   border-radius: 999px;
   background: #171717;
   color: #d1d5db;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
   padding: 0.65rem 1rem;
   cursor: pointer;
   font-weight: 700;
@@ -235,6 +239,26 @@ button {
   border-color: rgba(250, 204, 21, 0.45);
   background: rgba(250, 204, 21, 0.12);
   color: #fde047;
+}
+
+.view-switcher-badge {
+  min-width: 1.7rem;
+  height: 1.7rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 0.45rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #f3f4f6;
+  font-size: 0.82rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.view-switcher-button.is-active .view-switcher-badge {
+  background: rgba(147, 197, 253, 0.18);
+  color: #bfdbfe;
 }
 
 .analytics-panel {

@@ -204,6 +204,12 @@ function formatMinutesShort(minutes: number) {
   return remainder > 0 ? `${hours}h ${remainder}m` : `${hours}h`;
 }
 
+function isSameLocalDay(left: Date, right: Date) {
+  return left.getFullYear() === right.getFullYear()
+    && left.getMonth() === right.getMonth()
+    && left.getDate() === right.getDate();
+}
+
 function hydrateItem(item: {
   id: string;
   author_name: string;
@@ -587,6 +593,17 @@ function App() {
       liveCount: liveAnalyticsSessions.length,
     };
   }, [analyticsSessions, liveAnalyticsSessions.length]);
+
+  const analyticsTodayCount = useMemo(() => {
+    const today = new Date();
+    return analyticsSessions.reduce((count, item) => {
+      const startedAt = new Date(item.started_at);
+      if (Number.isNaN(startedAt.getTime())) {
+        return count;
+      }
+      return isSameLocalDay(startedAt, today) ? count + 1 : count;
+    }, 0);
+  }, [analyticsSessions]);
 
   const sessionsByGame = useMemo(() => {
     const groups = new Map<string, {
@@ -1089,17 +1106,19 @@ function App() {
       <section className="view-switcher" aria-label="Moderator views">
         <button
           type="button"
-          className={`view-switcher-button ${viewMode === "analytics" ? "is-active" : ""}`}
-          onClick={() => setViewMode("analytics")}
-        >
-          Analytics
-        </button>
-        <button
-          type="button"
           className={`view-switcher-button ${viewMode === "comments" ? "is-active" : ""}`}
           onClick={() => setViewMode("comments")}
         >
-          Comments
+          <span>Comments</span>
+          <span className="view-switcher-badge">{unreadFeed.length}</span>
+        </button>
+        <button
+          type="button"
+          className={`view-switcher-button ${viewMode === "analytics" ? "is-active" : ""}`}
+          onClick={() => setViewMode("analytics")}
+        >
+          <span>Analytics</span>
+          <span className="view-switcher-badge">{analyticsTodayCount}</span>
         </button>
       </section>
 
