@@ -9,6 +9,76 @@ export const portalSupabase = createClient(
   supabaseAnonKey,
 );
 
+export type AnalyticsSessionRecord = {
+  session_id: string;
+  player_id: string;
+  game_id: string;
+  game_name: string;
+  game_url: string;
+  shell_url: string;
+  source_origin: string;
+  launch_mode: "embedded" | "new-tab";
+  started_at: string;
+  last_heartbeat_at: string;
+  ended_at: string | null;
+  end_reason: string | null;
+  duration_seconds: number | null;
+  country_code: string | null;
+  region_code: string | null;
+  region: string | null;
+  city: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  timezone: string | null;
+  language: string | null;
+  platform: string | null;
+  user_agent: string | null;
+  screen_width: number | null;
+  screen_height: number | null;
+};
+
+export async function loadAnalyticsSessions(days: number) {
+  const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+  const { data, error } = await portalSupabase
+    .from("analytics_sessions")
+    .select(`
+      session_id,
+      player_id,
+      game_id,
+      game_name,
+      game_url,
+      shell_url,
+      source_origin,
+      launch_mode,
+      started_at,
+      last_heartbeat_at,
+      ended_at,
+      end_reason,
+      duration_seconds,
+      country_code,
+      region_code,
+      region,
+      city,
+      latitude,
+      longitude,
+      timezone,
+      language,
+      platform,
+      user_agent,
+      screen_width,
+      screen_height
+    `)
+    .gte("started_at", since)
+    .order("started_at", { ascending: false })
+    .limit(3000);
+
+  if (error) {
+    throw error;
+  }
+
+  return (data ?? []) as AnalyticsSessionRecord[];
+}
+
 export async function updateCommentReactions(input: {
   commentId: string;
   pageUrl: string;

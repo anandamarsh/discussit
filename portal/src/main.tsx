@@ -1,7 +1,13 @@
 import React, { useEffect, useMemo, useState } from "react";
 import ReactDOM from "react-dom/client";
-import { portalSupabase, updateCommentReactions } from "./supabase";
+import {
+  loadAnalyticsSessions,
+  portalSupabase,
+  type AnalyticsSessionRecord,
+  updateCommentReactions,
+} from "./supabase";
 import { ensurePushSubscription, sendTestPush } from "./pushNotifications";
+import { UsageMap, type UsageMapLocation } from "./UsageMap";
 import "./styles.css";
 import type { Session } from "@supabase/supabase-js";
 
@@ -27,6 +33,10 @@ type FeedItem = {
   dislikes: number;
 };
 
+type ViewMode = "analytics" | "comments";
+
+type RangeDays = 1 | 7 | 30;
+
 const moderatorEmail = "amarsh.anand@gmail.com";
 const autoSignInAttemptKey = "discussit:moderator:auto-signin-attempted";
 const notificationPreferenceKey = "discussit:moderator:notifications";
@@ -51,6 +61,53 @@ function labelForUrl(pageUrl: string) {
   } catch {
     return pageUrl;
   }
+}
+
+function formatDuration(seconds: number) {
+  if (seconds < 60) {
+    return `${seconds}s`;
+  }
+
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+
+  if (hours > 0) {
+    return `${hours}h ${minutes}m`;
+  }
+
+  return `${minutes}m`;
+}
+
+function effectiveSessionDurationSeconds(item: AnalyticsSessionRecord) {
+  if (typeof item.duration_seconds === "number" && item.duration_seconds >= 0) {
+    return item.duration_seconds;
+  }
+
+  const startedAt = new Date(item.started_at).getTime();
+  const endedAt = new Date(item.ended_at ?? item.last_heartbeat_at).getTime();
+
+  if (Number.isNaN(startedAt) || Number.isNaN(endedAt)) {
+    return 0;
+  }
+
+  return Math.max(0, Math.round((endedAt - startedAt) / 1000));
+}
+
+function isLiveSession(item: AnalyticsSessionRecord) {
+  if (item.ended_at) {
+    return false;
+  }
+
+  const lastSeen = new Date(item.last_heartbeat_at).getTime();
+  if (Number.isNaN(lastSeen)) {
+    return false;
+  }
+
+  return Date.now() - lastSeen < 90_000;
+}
+
+function mapLocationLabel(item: AnalyticsSessionRecord) {
+  return [item.city, item.region, item.country_code].filter(Boolean).join(", ") || "Unknown location";
 }
 
 function hydrateItem(item: {
@@ -146,6 +203,10 @@ function App() {
   const [notificationPreference, setNotificationPreference] = useState(readNotificationPreference);
   const [settingsError, setSettingsError] = useState("");
   const [sendingPush, setSendingPush] = useState(false);
+  const [viewMode, setViewMode] = useState<ViewMode>("analytics");
+  const [analyticsRangeDays, setAnalyticsRangeDays] = useState<RangeDays>(7);
+  const [analyticsSessions, setAnalyticsSessions] = useState<AnalyticsSessionRecord[]>([]);
+  const [analyticsLoading, setAnalyticsLoading] = useState(true);
   const [reactions, setReactions] = useState<Record<string, "like" | "dislike" | null>>(() => {
     if (typeof window === "undefined") {
       return {};
@@ -296,6 +357,62 @@ function App() {
     };
   }, [isAuthorizedModerator]);
 
+  useEffect(() => {
+    if (!isAuthorizedModerator) {
+      setAnalyticsSessions([]);
+      setAnalyticsLoading(false);
+      return;
+    }
+
+    let active = true;
+
+    const loadSessions = async () => {
+      try {
+        const sessions = await loadAnalyticsSessions(analyticsRangeDays);
+        if (!active) {
+          return;
+        }
+        setAnalyticsSessions(sessions);
+      } catch {
+        if (!active) {
+          return;
+        }
+        setAnalyticsSessions([]);
+      } finally {
+        if (active) {
+          setAnalyticsLoading(false);
+        }
+      }
+    };
+
+    setAnalyticsLoading(true);
+    void loadSessions();
+
+    const intervalId = window.setInterval(() => {
+      void loadSessions();
+    }, 30000);
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        void loadSessions();
+      }
+    };
+
+    const handleFocus = () => {
+      void loadSessions();
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("focus", handleFocus);
+
+    return () => {
+      active = false;
+      window.clearInterval(intervalId);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("focus", handleFocus);
+    };
+  }, [analyticsRangeDays, isAuthorizedModerator]);
+
   const unreadFeed = useMemo(() => feed.filter((item) => item.status === "Unread"), [feed]);
 
   const urlGroups = useMemo(() => {
@@ -324,13 +441,133 @@ function App() {
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   }, [feed, selectedUrl, unreadFeed]);
 
-  const currentTitle = selectedUrl ? labelForUrl(selectedUrl) : "Moderator Panel";
+  const currentTitle = viewMode === "analytics"
+    ? "Usage Analytics"
+    : selectedUrl
+      ? labelForUrl(selectedUrl)
+      : "Moderator Panel";
   const notificationsEnabled = notificationPreference === "on";
   const reactionActorName =
     session?.user.user_metadata?.full_name
     ?? session?.user.user_metadata?.name
     ?? session?.user.email?.split("@")[0]
     ?? "Moderator";
+
+  const liveAnalyticsSessions = useMemo(
+    () => analyticsSessions.filter((item) => isLiveSession(item)).sort((a, b) =>
+      new Date(b.last_heartbeat_at).getTime() - new Date(a.last_heartbeat_at).getTime()),
+    [analyticsSessions],
+  );
+
+  const analyticsSummary = useMemo(() => {
+    const uniquePlayers = new Set(analyticsSessions.map((item) => item.player_id)).size;
+    const totalDurationSeconds = analyticsSessions.reduce(
+      (sum, item) => sum + effectiveSessionDurationSeconds(item),
+      0,
+    );
+    const averageDurationSeconds = analyticsSessions.length > 0
+      ? Math.round(totalDurationSeconds / analyticsSessions.length)
+      : 0;
+
+    return {
+      totalSessions: analyticsSessions.length,
+      uniquePlayers,
+      totalDurationSeconds,
+      averageDurationSeconds,
+      liveCount: liveAnalyticsSessions.length,
+    };
+  }, [analyticsSessions, liveAnalyticsSessions.length]);
+
+  const sessionsByGame = useMemo(() => {
+    const groups = new Map<string, {
+      gameId: string;
+      gameName: string;
+      sessions: number;
+      active: number;
+      uniquePlayers: Set<string>;
+      totalDurationSeconds: number;
+    }>();
+
+    for (const item of analyticsSessions) {
+      const current = groups.get(item.game_id) ?? {
+        gameId: item.game_id,
+        gameName: item.game_name,
+        sessions: 0,
+        active: 0,
+        uniquePlayers: new Set<string>(),
+        totalDurationSeconds: 0,
+      };
+
+      current.sessions += 1;
+      current.uniquePlayers.add(item.player_id);
+      current.totalDurationSeconds += effectiveSessionDurationSeconds(item);
+      if (isLiveSession(item)) {
+        current.active += 1;
+      }
+
+      groups.set(item.game_id, current);
+    }
+
+    return Array.from(groups.values())
+      .map((item) => ({
+        ...item,
+        uniquePlayers: item.uniquePlayers.size,
+        averageDurationSeconds: item.sessions > 0 ? Math.round(item.totalDurationSeconds / item.sessions) : 0,
+      }))
+      .sort((a, b) => b.sessions - a.sessions || b.active - a.active || a.gameName.localeCompare(b.gameName));
+  }, [analyticsSessions]);
+
+  const mapLocations = useMemo(() => {
+    const groups = new Map<string, UsageMapLocation>();
+
+    for (const item of analyticsSessions) {
+      if (typeof item.latitude !== "number" || typeof item.longitude !== "number") {
+        continue;
+      }
+
+      const key = `${item.latitude.toFixed(3)}:${item.longitude.toFixed(3)}:${item.city ?? ""}:${item.region ?? ""}`;
+      const current = groups.get(key) ?? {
+        key,
+        label: mapLocationLabel(item),
+        latitude: item.latitude,
+        longitude: item.longitude,
+        count: 0,
+        activeCount: 0,
+      };
+
+      current.count += 1;
+      if (isLiveSession(item)) {
+        current.activeCount += 1;
+      }
+
+      groups.set(key, current);
+    }
+
+    return Array.from(groups.values()).sort((a, b) => b.count - a.count);
+  }, [analyticsSessions]);
+
+  const locationBreakdown = useMemo(() => {
+    const groups = new Map<string, { label: string; sessions: number; active: number }>();
+
+    for (const item of analyticsSessions) {
+      const label = mapLocationLabel(item);
+      const current = groups.get(label) ?? { label, sessions: 0, active: 0 };
+      current.sessions += 1;
+      if (isLiveSession(item)) {
+        current.active += 1;
+      }
+      groups.set(label, current);
+    }
+
+    return Array.from(groups.values())
+      .sort((a, b) => b.sessions - a.sessions || b.active - a.active || a.label.localeCompare(b.label))
+      .slice(0, 8);
+  }, [analyticsSessions]);
+
+  const recentAnalyticsSessions = useMemo(
+    () => analyticsSessions.slice(0, 12),
+    [analyticsSessions],
+  );
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -597,6 +834,23 @@ function App() {
         <div className="portal-header-spacer" />
       </header>
 
+      <section className="view-switcher" aria-label="Moderator views">
+        <button
+          type="button"
+          className={`view-switcher-button ${viewMode === "analytics" ? "is-active" : ""}`}
+          onClick={() => setViewMode("analytics")}
+        >
+          Analytics
+        </button>
+        <button
+          type="button"
+          className={`view-switcher-button ${viewMode === "comments" ? "is-active" : ""}`}
+          onClick={() => setViewMode("comments")}
+        >
+          Comments
+        </button>
+      </section>
+
       {menuOpen ? (
         <>
           <button type="button" className="menu-backdrop" aria-label="Close menu" onClick={() => setMenuOpen(false)} />
@@ -684,62 +938,232 @@ function App() {
         </>
       ) : null}
 
-      <section className="comments-panel">
-        {currentFeed.length === 0 ? (
-          <div className="empty-state">No comments here right now.</div>
-        ) : (
-          currentFeed.map((item) => (
-            <article className="comment-card" key={item.id}>
-              <div className="comment-topline">
-                <div>
-                  <strong>{item.authorName}</strong>
-                  <span>{item.authorEmail || "No email provided"}</span>
-                </div>
-              </div>
+      {viewMode === "analytics" ? (
+        <section className="analytics-panel">
+          <div className="analytics-range-switcher" aria-label="Analytics range">
+            {[1, 7, 30].map((days) => (
+              <button
+                key={days}
+                type="button"
+                className={`analytics-range-button ${analyticsRangeDays === days ? "is-active" : ""}`}
+                onClick={() => setAnalyticsRangeDays(days as RangeDays)}
+              >
+                {days === 1 ? "24h" : `${days}d`}
+              </button>
+            ))}
+          </div>
 
-              <p className="comment-body">{item.body}</p>
-
-              <div className="comment-meta">
-                <span>{formatTimestamp(item.createdAt)}</span>
-                <button
-                  type="button"
-                  className={`reaction-chip ${reactions[item.id] === "like" ? "is-active" : ""}`}
-                  onClick={() => toggleReaction(item.id, "like")}
-                  aria-label="Like comment"
-                >
-                  <ReactionThumbIcon direction="up" />
-                  <span>{item.likes}</span>
-                </button>
-                <button
-                  type="button"
-                  className={`reaction-chip ${reactions[item.id] === "dislike" ? "is-active" : ""}`}
-                  onClick={() => toggleReaction(item.id, "dislike")}
-                  aria-label="Dislike comment"
-                >
-                  <ReactionThumbIcon direction="down" />
-                  <span>{item.dislikes}</span>
-                </button>
-              </div>
-
-              <div className="comment-actions">
-                {item.status === "Unread" ? (
-                  <button type="button" className="icon-action is-confirm" onClick={() => markRead(item.id)} aria-label="Mark comment as read">
-                    ✓
-                  </button>
-                ) : null}
-                <button
-                  type="button"
-                  className="icon-action is-danger"
-                  onClick={() => setPendingDelete(item)}
-                  aria-label="Delete comment"
-                >
-                  ✕
-                </button>
-              </div>
+          <div className="analytics-overview-grid">
+            <article className="analytics-stat-card">
+              <span className="analytics-stat-label">Sessions</span>
+              <strong>{analyticsSummary.totalSessions}</strong>
+              <small>Last {analyticsRangeDays === 1 ? "24 hours" : `${analyticsRangeDays} days`}</small>
             </article>
-          ))
-        )}
-      </section>
+            <article className="analytics-stat-card">
+              <span className="analytics-stat-label">Players</span>
+              <strong>{analyticsSummary.uniquePlayers}</strong>
+              <small>Anonymous recurring browsers</small>
+            </article>
+            <article className="analytics-stat-card">
+              <span className="analytics-stat-label">Live Now</span>
+              <strong>{analyticsSummary.liveCount}</strong>
+              <small>Heartbeat seen in the last 90s</small>
+            </article>
+            <article className="analytics-stat-card">
+              <span className="analytics-stat-label">Average Play</span>
+              <strong>{formatDuration(analyticsSummary.averageDurationSeconds)}</strong>
+              <small>Total play time {formatDuration(analyticsSummary.totalDurationSeconds)}</small>
+            </article>
+          </div>
+
+          {analyticsLoading ? (
+            <div className="empty-state">Loading analytics…</div>
+          ) : (
+            <>
+              <div className="analytics-layout-grid">
+                <section className="analytics-card analytics-map-card">
+                  <div className="analytics-card-header">
+                    <div>
+                      <p className="portal-kicker">Locations</p>
+                      <h2>Usage Map</h2>
+                    </div>
+                  </div>
+                  {mapLocations.length > 0 ? (
+                    <UsageMap locations={mapLocations} />
+                  ) : (
+                    <div className="empty-state analytics-empty">No map data yet.</div>
+                  )}
+                </section>
+
+                <section className="analytics-card">
+                  <div className="analytics-card-header">
+                    <div>
+                      <p className="portal-kicker">Live</p>
+                      <h2>Active Sessions</h2>
+                    </div>
+                  </div>
+                  <div className="analytics-live-list">
+                    {liveAnalyticsSessions.length === 0 ? (
+                      <div className="empty-state analytics-empty">Nobody is currently playing.</div>
+                    ) : (
+                      liveAnalyticsSessions.map((item) => (
+                        <article key={item.session_id} className="analytics-live-item">
+                          <div>
+                            <strong>{item.game_name}</strong>
+                            <span>{mapLocationLabel(item)}</span>
+                          </div>
+                          <small>{formatTimestamp(item.last_heartbeat_at)}</small>
+                        </article>
+                      ))
+                    )}
+                  </div>
+                </section>
+              </div>
+
+              <div className="analytics-layout-grid">
+                <section className="analytics-card">
+                  <div className="analytics-card-header">
+                    <div>
+                      <p className="portal-kicker">Games</p>
+                      <h2>Top Games</h2>
+                    </div>
+                  </div>
+                  <div className="analytics-table">
+                    <div className="analytics-table-row analytics-table-head">
+                      <span>Game</span>
+                      <span>Sessions</span>
+                      <span>Players</span>
+                      <span>Avg</span>
+                      <span>Live</span>
+                    </div>
+                    {sessionsByGame.length === 0 ? (
+                      <div className="empty-state analytics-empty">No sessions recorded yet.</div>
+                    ) : (
+                      sessionsByGame.map((item) => (
+                        <div key={item.gameId} className="analytics-table-row">
+                          <span>{item.gameName}</span>
+                          <span>{item.sessions}</span>
+                          <span>{item.uniquePlayers}</span>
+                          <span>{formatDuration(item.averageDurationSeconds)}</span>
+                          <span>{item.active}</span>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </section>
+
+                <section className="analytics-card">
+                  <div className="analytics-card-header">
+                    <div>
+                      <p className="portal-kicker">Places</p>
+                      <h2>Top Locations</h2>
+                    </div>
+                  </div>
+                  <div className="analytics-location-list">
+                    {locationBreakdown.length === 0 ? (
+                      <div className="empty-state analytics-empty">No location data yet.</div>
+                    ) : (
+                      locationBreakdown.map((item) => (
+                        <article key={item.label} className="analytics-location-item">
+                          <div>
+                            <strong>{item.label}</strong>
+                            <span>{item.sessions} sessions</span>
+                          </div>
+                          <small>{item.active} live</small>
+                        </article>
+                      ))
+                    )}
+                  </div>
+                </section>
+              </div>
+
+              <section className="analytics-card analytics-feed-card">
+                <div className="analytics-card-header">
+                  <div>
+                    <p className="portal-kicker">Recent</p>
+                    <h2>Recent Activity</h2>
+                  </div>
+                </div>
+                <div className="analytics-recent-list">
+                  {recentAnalyticsSessions.length === 0 ? (
+                    <div className="empty-state analytics-empty">No activity in this window.</div>
+                  ) : (
+                    recentAnalyticsSessions.map((item) => (
+                      <article key={item.session_id} className="analytics-recent-item">
+                        <div>
+                          <strong>{item.game_name}</strong>
+                          <span>{mapLocationLabel(item)}</span>
+                        </div>
+                        <div className="analytics-recent-meta">
+                          <small>{formatDuration(effectiveSessionDurationSeconds(item))}</small>
+                          <small>{formatTimestamp(item.started_at)}</small>
+                        </div>
+                      </article>
+                    ))
+                  )}
+                </div>
+              </section>
+            </>
+          )}
+        </section>
+      ) : (
+        <section className="comments-panel">
+          {currentFeed.length === 0 ? (
+            <div className="empty-state">No comments here right now.</div>
+          ) : (
+            currentFeed.map((item) => (
+              <article className="comment-card" key={item.id}>
+                <div className="comment-topline">
+                  <div>
+                    <strong>{item.authorName}</strong>
+                    <span>{item.authorEmail || "No email provided"}</span>
+                  </div>
+                </div>
+
+                <p className="comment-body">{item.body}</p>
+
+                <div className="comment-meta">
+                  <span>{formatTimestamp(item.createdAt)}</span>
+                  <button
+                    type="button"
+                    className={`reaction-chip ${reactions[item.id] === "like" ? "is-active" : ""}`}
+                    onClick={() => toggleReaction(item.id, "like")}
+                    aria-label="Like comment"
+                  >
+                    <ReactionThumbIcon direction="up" />
+                    <span>{item.likes}</span>
+                  </button>
+                  <button
+                    type="button"
+                    className={`reaction-chip ${reactions[item.id] === "dislike" ? "is-active" : ""}`}
+                    onClick={() => toggleReaction(item.id, "dislike")}
+                    aria-label="Dislike comment"
+                  >
+                    <ReactionThumbIcon direction="down" />
+                    <span>{item.dislikes}</span>
+                  </button>
+                </div>
+
+                <div className="comment-actions">
+                  {item.status === "Unread" ? (
+                    <button type="button" className="icon-action is-confirm" onClick={() => markRead(item.id)} aria-label="Mark comment as read">
+                      ✓
+                    </button>
+                  ) : null}
+                  <button
+                    type="button"
+                    className="icon-action is-danger"
+                    onClick={() => setPendingDelete(item)}
+                    aria-label="Delete comment"
+                  >
+                    ✕
+                  </button>
+                </div>
+              </article>
+            ))
+          )}
+        </section>
+      )}
 
       {pendingDelete ? (
         <div className="confirm-overlay" role="dialog" aria-modal="true">

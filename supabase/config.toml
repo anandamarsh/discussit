@@ -14,3 +14,6 @@ verify_jwt = false
 
 [functions.push-config]
 verify_jwt = false
+
+[functions.ingest-analytics]
+verify_jwt = false
