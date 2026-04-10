@@ -1,4 +1,3 @@
-import { portalSupabase } from "./supabase";
 import { readTrimmedEnv } from "../../shared/supabaseEnv";
 
 const supabaseUrl = readTrimmedEnv(import.meta.env.VITE_SUPABASE_URL);
@@ -35,6 +34,23 @@ function requirePushConfig() {
   if (!supabaseUrl || !supabaseAnonKey || !vapidPublicKey) {
     throw new Error("Push notifications are not configured for this app.");
   }
+}
+
+async function readErrorMessage(response: Response, fallback: string) {
+  const data = await response.json().catch(() => null);
+  if (data && typeof data === "object") {
+    const error =
+      "error" in data && typeof data.error === "string"
+        ? data.error
+        : fallback;
+    const details =
+      "details" in data && typeof data.details === "string"
+        ? data.details
+        : "";
+    return details ? `${error}: ${details}` : error;
+  }
+
+  return fallback;
 }
 
 function base64UrlToUint8Array(input: string) {
@@ -83,22 +99,18 @@ function serializePushSubscription(subscription: PushSubscription): SerializedPu
 async function savePushSubscription(subscription: PushSubscription) {
   const payload = serializePushSubscription(subscription);
   const app = getAppPushMetadata();
-  const { error } = await portalSupabase.from("push_subscriptions").upsert(
-    {
-      endpoint: payload.endpoint,
-      expiration_time: payload.expirationTime ?? null,
-      keys_auth: payload.keys.auth,
-      keys_p256dh: payload.keys.p256dh,
-      app_id: app.appId,
-      app_name: app.appName,
-      app_origin: app.appOrigin,
-      app_scope: app.appScope,
+  const response = await fetch(`${supabaseUrl}/functions/v1/save-push-subscription`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      apikey: supabaseAnonKey,
+      Authorization: `Bearer ${supabaseAnonKey}`,
     },
-    { onConflict: "endpoint" },
-  );
+    body: JSON.stringify({ subscription: payload, app }),
+  });
 
-  if (error) {
-    throw new Error("Failed to save push subscription.");
+  if (!response.ok) {
+    throw new Error(await readErrorMessage(response, "Failed to save push subscription."));
   }
 
   return payload;
@@ -158,7 +170,6 @@ export async function sendTestPush() {
   });
 
   if (!response.ok) {
-    const data = await response.json().catch(() => ({}));
-    throw new Error(typeof data.error === "string" ? data.error : "Failed to send test push.");
+    throw new Error(await readErrorMessage(response, "Failed to send test push."));
   }
 }
