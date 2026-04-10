@@ -121,7 +121,9 @@ function mapLocationLabel(item: AnalyticsSessionRecord) {
 }
 
 function analyticsScopeKey(item: Pick<AnalyticsSessionRecord, "game_id" | "game_url" | "shell_url" | "game_name">) {
-  return item.game_id === "__site__" ? "__site__" : (item.game_url || item.shell_url || item.game_name);
+  return item.game_id === "__site__"
+    ? "__site__"
+    : canonicalScopeKeyFromUrl(item.game_url || item.shell_url || item.game_name);
 }
 
 function analyticsScopeLabel(item: Pick<AnalyticsSessionRecord, "game_id" | "game_url" | "shell_url" | "game_name">) {
@@ -129,12 +131,26 @@ function analyticsScopeLabel(item: Pick<AnalyticsSessionRecord, "game_id" | "gam
     return "See Maths";
   }
 
-  return labelForUrl(item.game_url || item.shell_url || item.game_name);
+  return item.game_name || labelForUrl(item.game_url || item.shell_url || item.game_name);
+}
+
+function canonicalScopeKeyFromUrl(value: string) {
+  try {
+    const url = new URL(value);
+    const pathname = url.pathname.replace(/\/+$/, "") || "/";
+    return `${url.origin}${pathname}`;
+  } catch {
+    return value;
+  }
 }
 
 function describeAnalyticsEvent(item: AnalyticsGameEventRecord) {
   const payload = item.payload_json ?? {};
   switch (item.event_type) {
+    case "level_started":
+      return `Level ${typeof payload.level === "number" || typeof payload.level === "string" ? payload.level : ""} started`.trim();
+    case "level_finished":
+      return `Level ${typeof payload.level === "number" || typeof payload.level === "string" ? payload.level : ""} finished`.trim();
     case "question_answered":
       return `Question answered${payload.correct === true ? " correctly" : payload.correct === false ? " incorrectly" : ""}`;
     case "level_completed":
@@ -561,12 +577,13 @@ function App() {
   const urlGroups = useMemo(() => {
     const groups = new Map<string, { unread: number; total: number }>();
     for (const item of feed) {
-      const current = groups.get(item.pageUrl) ?? { unread: 0, total: 0 };
+      const scopeKey = canonicalScopeKeyFromUrl(item.pageUrl);
+      const current = groups.get(scopeKey) ?? { unread: 0, total: 0 };
       current.total += 1;
       if (item.status === "Unread") {
         current.unread += 1;
       }
-      groups.set(item.pageUrl, current);
+      groups.set(scopeKey, current);
     }
 
     return Array.from(groups.entries())
@@ -580,7 +597,7 @@ function App() {
     }
 
     return feed
-      .filter((item) => item.pageUrl === selectedUrl)
+      .filter((item) => canonicalScopeKeyFromUrl(item.pageUrl) === selectedUrl)
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   }, [feed, selectedUrl, unreadFeed]);
   const selectedScopeLabel = selectedUrl
@@ -677,6 +694,7 @@ function App() {
         isSite: item.isSite,
       };
       current.scopeKey = current.scopeKey || item.scopeKey;
+      current.label = item.label || current.label;
       current.subtitle = current.subtitle || item.subtitle;
       current.todayUsage = item.todayUsage;
       current.isSite = item.isSite;
@@ -1637,6 +1655,45 @@ function App() {
                       <small>Questions answered</small>
                     </article>
                   </div>
+                  <div className="analytics-card-header">
+                    <div>
+                      <p className="portal-kicker">What Happened</p>
+                      <h2>Recent Round Events</h2>
+                    </div>
+                  </div>
+                  <div className="analytics-recent-list">
+                    {recentAnalyticsGameEvents.filter((item) =>
+                      item.event_type === "level_started"
+                      || item.event_type === "level_finished"
+                      || item.event_type === "monster_round_completed"
+                      || item.event_type === "platinum_round_completed"
+                      || item.event_type === "level_completed"
+                      || item.event_type === "game_completed").length === 0 ? (
+                        <div className="empty-state analytics-empty">No round or completion events yet.</div>
+                      ) : (
+                        recentAnalyticsGameEvents
+                          .filter((item) =>
+                            item.event_type === "level_started"
+                            || item.event_type === "level_finished"
+                            || item.event_type === "monster_round_completed"
+                            || item.event_type === "platinum_round_completed"
+                            || item.event_type === "level_completed"
+                            || item.event_type === "game_completed")
+                          .slice(0, 8)
+                          .map((item) => (
+                            <article key={`summary-${item.id}`} className="analytics-recent-item">
+                              <div>
+                                <strong>{item.game_name}</strong>
+                                <span>{describeAnalyticsEvent(item)}</span>
+                              </div>
+                              <div className="analytics-recent-meta">
+                                <small>{item.event_type}</small>
+                                <small>{formatTimestamp(item.occurred_at)}</small>
+                              </div>
+                            </article>
+                          ))
+                      )}
+                  </div>
                 </section>
 
                 <section className="analytics-card analytics-feed-card">
@@ -1817,7 +1874,6 @@ function App() {
               <div className="settings-switch-row">
                 <span className="settings-label-group">
                   <span className="settings-label">Notify On Each Round</span>
-                  <span className="settings-note">Includes round completions, level clears, and game completions.</span>
                 </span>
                 <label className="settings-switch" aria-label="Notify on each round">
                   <input
