@@ -9,6 +9,7 @@ import {
   updateCommentReactions,
 } from "./supabase";
 import { ensurePushSubscription, sendTestPush } from "./pushNotifications";
+import { AnalyticsBarChart, type AnalyticsChartBar } from "./AnalyticsBarChart";
 import { UsageMap, type UsageMapLocation } from "./UsageMap";
 import "./styles.css";
 import type { Session } from "@supabase/supabase-js";
@@ -38,6 +39,7 @@ type FeedItem = {
 type ViewMode = "analytics" | "comments";
 
 type RangeDays = 1 | 7 | 30;
+type BreakdownMode = "hour" | "day" | "week";
 
 const moderatorEmail = "amarsh.anand@gmail.com";
 const autoSignInAttemptKey = "discussit:moderator:auto-signin-attempted";
@@ -132,6 +134,74 @@ function describeAnalyticsEvent(item: AnalyticsGameEventRecord) {
     default:
       return item.event_type.replace(/_/g, " ");
   }
+}
+
+const analyticsChartPalette = [
+  "#fde047",
+  "#38bdf8",
+  "#34d399",
+  "#fb7185",
+  "#c084fc",
+  "#f97316",
+  "#a3e635",
+  "#60a5fa",
+];
+
+function startOfBucket(date: Date, mode: BreakdownMode) {
+  const next = new Date(date);
+  if (mode === "hour") {
+    next.setMinutes(0, 0, 0);
+    return next;
+  }
+  if (mode === "day") {
+    next.setHours(0, 0, 0, 0);
+    return next;
+  }
+
+  next.setHours(0, 0, 0, 0);
+  const day = next.getDay();
+  const mondayOffset = (day + 6) % 7;
+  next.setDate(next.getDate() - mondayOffset);
+  return next;
+}
+
+function addBucketStep(date: Date, mode: BreakdownMode) {
+  const next = new Date(date);
+  if (mode === "hour") {
+    next.setHours(next.getHours() + 1);
+    return next;
+  }
+  if (mode === "day") {
+    next.setDate(next.getDate() + 1);
+    return next;
+  }
+
+  next.setDate(next.getDate() + 7);
+  return next;
+}
+
+function formatBucketLabel(date: Date, mode: BreakdownMode) {
+  if (mode === "hour") {
+    return date.toLocaleTimeString([], { hour: "numeric" });
+  }
+  if (mode === "day") {
+    return date.toLocaleDateString([], { month: "short", day: "numeric" });
+  }
+
+  return `${date.toLocaleDateString([], { month: "short", day: "numeric" })}`;
+}
+
+function formatMinutesShort(minutes: number) {
+  if (minutes < 1) {
+    return "<1m";
+  }
+  if (minutes < 60) {
+    return `${Math.round(minutes)}m`;
+  }
+
+  const hours = Math.floor(minutes / 60);
+  const remainder = Math.round(minutes % 60);
+  return remainder > 0 ? `${hours}h ${remainder}m` : `${hours}h`;
 }
 
 function hydrateItem(item: {
@@ -229,6 +299,7 @@ function App() {
   const [sendingPush, setSendingPush] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>("analytics");
   const [analyticsRangeDays, setAnalyticsRangeDays] = useState<RangeDays>(7);
+  const [analyticsBreakdownMode, setAnalyticsBreakdownMode] = useState<BreakdownMode>("day");
   const [analyticsSessions, setAnalyticsSessions] = useState<AnalyticsSessionRecord[]>([]);
   const [analyticsGameEvents, setAnalyticsGameEvents] = useState<AnalyticsGameEventRecord[]>([]);
   const [analyticsLoading, setAnalyticsLoading] = useState(true);
@@ -443,6 +514,15 @@ function App() {
     };
   }, [analyticsRangeDays, isAuthorizedModerator]);
 
+  useEffect(() => {
+    if (analyticsRangeDays === 1) {
+      setAnalyticsBreakdownMode("hour");
+      return;
+    }
+
+    setAnalyticsBreakdownMode((current) => (current === "hour" ? "day" : current));
+  }, [analyticsRangeDays]);
+
   const unreadFeed = useMemo(() => feed.filter((item) => item.status === "Unread"), [feed]);
 
   const urlGroups = useMemo(() => {
@@ -546,6 +626,143 @@ function App() {
       }))
       .sort((a, b) => b.sessions - a.sessions || b.active - a.active || a.gameName.localeCompare(b.gameName));
   }, [analyticsSessions]);
+
+  const topChartGames = useMemo(() => {
+    const topGames = sessionsByGame.slice(0, 6);
+    return topGames.map((item, index) => ({
+      gameId: item.gameId,
+      gameName: item.gameName,
+      color: analyticsChartPalette[index % analyticsChartPalette.length],
+    }));
+  }, [sessionsByGame]);
+
+  const chartLegendItems = useMemo(() => {
+    const totalTrackedSessions = topChartGames.reduce((sum, item) => {
+      const matching = sessionsByGame.find((session) => session.gameId === item.gameId);
+      return sum + (matching?.sessions ?? 0);
+    }, 0);
+    const otherSessions = Math.max(0, analyticsSummary.totalSessions - totalTrackedSessions);
+
+    const items = topChartGames.map((item) => ({
+      key: item.gameId,
+      label: item.gameName,
+      color: item.color,
+    }));
+
+    if (otherSessions > 0) {
+      items.push({
+        key: "other",
+        label: "Other games",
+        color: "#6b7280",
+      });
+    }
+
+    return items;
+  }, [analyticsSummary.totalSessions, sessionsByGame, topChartGames]);
+
+  const analyticsBreakdownOptions = useMemo(() => {
+    if (analyticsRangeDays === 1) {
+      return [{ value: "hour", label: "Hourly" }] as const;
+    }
+
+    return [
+      { value: "day", label: "Daily" },
+      { value: "week", label: "Weekly" },
+    ] as const;
+  }, [analyticsRangeDays]);
+
+  const usageChartBars = useMemo(() => {
+    if (analyticsSessions.length === 0) {
+      return { sessionBars: [] as AnalyticsChartBar[], durationBars: [] as AnalyticsChartBar[] };
+    }
+
+    const mode = analyticsBreakdownMode;
+    const now = new Date();
+    const since = new Date(Date.now() - analyticsRangeDays * 24 * 60 * 60 * 1000);
+    const firstBucket = startOfBucket(since, mode);
+    const bucketOrder: string[] = [];
+    const bucketMap = new Map<string, {
+      key: string;
+      label: string;
+      counts: Map<string, number>;
+      seconds: Map<string, number>;
+    }>();
+
+    for (let cursor = new Date(firstBucket); cursor <= now; cursor = addBucketStep(cursor, mode)) {
+      const key = cursor.toISOString();
+      bucketOrder.push(key);
+      bucketMap.set(key, {
+        key,
+        label: formatBucketLabel(cursor, mode),
+        counts: new Map(),
+        seconds: new Map(),
+      });
+    }
+
+    const colorLookup = new Map(chartLegendItems.map((item) => [item.key, item.color]));
+    const labelLookup = new Map(chartLegendItems.map((item) => [item.key, item.label]));
+    const trackedGameIds = new Set(topChartGames.map((item) => item.gameId));
+
+    for (const item of analyticsSessions) {
+      const bucketDate = startOfBucket(new Date(item.started_at), mode);
+      const bucket = bucketMap.get(bucketDate.toISOString());
+      if (!bucket) {
+        continue;
+      }
+
+      const gameKey = trackedGameIds.has(item.game_id) ? item.game_id : "other";
+      bucket.counts.set(gameKey, (bucket.counts.get(gameKey) ?? 0) + 1);
+      bucket.seconds.set(gameKey, (bucket.seconds.get(gameKey) ?? 0) + effectiveSessionDurationSeconds(item));
+    }
+
+    const toSegments = (values: Map<string, number>) =>
+      Array.from(values.entries())
+        .filter(([, value]) => value > 0)
+        .sort((a, b) => b[1] - a[1])
+        .map(([key, value]) => ({
+          key,
+          label: labelLookup.get(key) ?? key,
+          value,
+          color: colorLookup.get(key) ?? "#6b7280",
+        }));
+
+    const sessionBars = bucketOrder.map((key) => {
+      const bucket = bucketMap.get(key)!;
+      const segments = toSegments(bucket.counts);
+      const total = segments.reduce((sum, segment) => sum + segment.value, 0);
+      return {
+        key: bucket.key,
+        label: bucket.label,
+        total,
+        summary: `${total} session${total === 1 ? "" : "s"}`,
+        segments,
+      } satisfies AnalyticsChartBar;
+    });
+
+    const durationBars = bucketOrder.map((key) => {
+      const bucket = bucketMap.get(key)!;
+      const segments = toSegments(bucket.seconds).map((segment) => ({
+        ...segment,
+        value: Math.round((segment.value / 60) * 10) / 10,
+      }));
+      const total = Math.round((segments.reduce((sum, segment) => sum + segment.value, 0)) * 10) / 10;
+      return {
+        key: `${bucket.key}:duration`,
+        label: bucket.label,
+        total,
+        summary: formatMinutesShort(total),
+        segments,
+      } satisfies AnalyticsChartBar;
+    });
+
+    return { sessionBars, durationBars };
+  }, [
+    analyticsBreakdownMode,
+    analyticsRangeDays,
+    analyticsSessions,
+    chartLegendItems,
+    topChartGames,
+  ]);
 
   const mapLocations = useMemo(() => {
     const groups = new Map<string, UsageMapLocation>();
@@ -975,17 +1192,32 @@ function App() {
 
       {viewMode === "analytics" ? (
         <section className="analytics-panel">
-          <div className="analytics-range-switcher" aria-label="Analytics range">
-            {[1, 7, 30].map((days) => (
-              <button
-                key={days}
-                type="button"
-                className={`analytics-range-button ${analyticsRangeDays === days ? "is-active" : ""}`}
-                onClick={() => setAnalyticsRangeDays(days as RangeDays)}
-              >
-                {days === 1 ? "24h" : `${days}d`}
-              </button>
-            ))}
+          <div className="analytics-toolbar">
+            <div className="analytics-range-switcher" aria-label="Analytics range">
+              {[1, 7, 30].map((days) => (
+                <button
+                  key={days}
+                  type="button"
+                  className={`analytics-range-button ${analyticsRangeDays === days ? "is-active" : ""}`}
+                  onClick={() => setAnalyticsRangeDays(days as RangeDays)}
+                >
+                  {days === 1 ? "24h" : `${days}d`}
+                </button>
+              ))}
+            </div>
+
+            <div className="analytics-range-switcher" aria-label="Analytics breakdown">
+              {analyticsBreakdownOptions.map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  className={`analytics-range-button ${analyticsBreakdownMode === option.value ? "is-active" : ""}`}
+                  onClick={() => setAnalyticsBreakdownMode(option.value)}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
           </div>
 
           <div className="analytics-overview-grid">
@@ -1015,7 +1247,53 @@ function App() {
             <div className="empty-state">Loading analytics…</div>
           ) : (
             <>
-              <div className="analytics-layout-grid">
+              <div className="analytics-chart-grid">
+                <section className="analytics-card">
+                  <div className="analytics-card-header">
+                    <div>
+                      <p className="portal-kicker">Trends</p>
+                      <h2>Sessions by {analyticsBreakdownMode === "hour" ? "Hour" : analyticsBreakdownMode === "day" ? "Day" : "Week"}</h2>
+                    </div>
+                  </div>
+                  <AnalyticsBarChart
+                    bars={usageChartBars.sessionBars}
+                    emptyLabel="No session trend data yet."
+                  />
+                </section>
+
+                <section className="analytics-card">
+                  <div className="analytics-card-header">
+                    <div>
+                      <p className="portal-kicker">Play Time</p>
+                      <h2>Play Time by {analyticsBreakdownMode === "hour" ? "Hour" : analyticsBreakdownMode === "day" ? "Day" : "Week"}</h2>
+                    </div>
+                  </div>
+                  <AnalyticsBarChart
+                    bars={usageChartBars.durationBars}
+                    emptyLabel="No play time trend data yet."
+                    valueFormatter={formatMinutesShort}
+                  />
+                </section>
+              </div>
+
+              <section className="analytics-card">
+                <div className="analytics-card-header">
+                  <div>
+                    <p className="portal-kicker">Legend</p>
+                    <h2>Games in the Charts</h2>
+                  </div>
+                </div>
+                <div className="analytics-legend-list">
+                  {chartLegendItems.map((item) => (
+                    <span key={item.key} className="analytics-legend-item">
+                      <span className="analytics-legend-swatch" style={{ background: item.color }} />
+                      <span>{item.label}</span>
+                    </span>
+                  ))}
+                </div>
+              </section>
+
+              <div className="analytics-layout-grid analytics-layout-grid-wide">
                 <section className="analytics-card analytics-map-card">
                   <div className="analytics-card-header">
                     <div>
@@ -1112,59 +1390,61 @@ function App() {
                 </section>
               </div>
 
-              <section className="analytics-card analytics-feed-card">
-                <div className="analytics-card-header">
-                  <div>
-                    <p className="portal-kicker">Recent</p>
-                    <h2>Recent Activity</h2>
+              <div className="analytics-feed-grid">
+                <section className="analytics-card analytics-feed-card">
+                  <div className="analytics-card-header">
+                    <div>
+                      <p className="portal-kicker">Recent</p>
+                      <h2>Recent Activity</h2>
+                    </div>
                   </div>
-                </div>
-                <div className="analytics-recent-list">
-                  {recentAnalyticsSessions.length === 0 ? (
-                    <div className="empty-state analytics-empty">No activity in this window.</div>
-                  ) : (
-                    recentAnalyticsSessions.map((item) => (
-                      <article key={item.session_id} className="analytics-recent-item">
-                        <div>
-                          <strong>{item.game_name}</strong>
-                          <span>{mapLocationLabel(item)}</span>
-                        </div>
-                        <div className="analytics-recent-meta">
-                          <small>{formatDuration(effectiveSessionDurationSeconds(item))}</small>
-                          <small>{formatTimestamp(item.started_at)}</small>
-                        </div>
-                      </article>
-                    ))
-                  )}
-                </div>
-              </section>
+                  <div className="analytics-recent-list">
+                    {recentAnalyticsSessions.length === 0 ? (
+                      <div className="empty-state analytics-empty">No activity in this window.</div>
+                    ) : (
+                      recentAnalyticsSessions.map((item) => (
+                        <article key={item.session_id} className="analytics-recent-item">
+                          <div>
+                            <strong>{item.game_name}</strong>
+                            <span>{mapLocationLabel(item)}</span>
+                          </div>
+                          <div className="analytics-recent-meta">
+                            <small>{formatDuration(effectiveSessionDurationSeconds(item))}</small>
+                            <small>{formatTimestamp(item.started_at)}</small>
+                          </div>
+                        </article>
+                      ))
+                    )}
+                  </div>
+                </section>
 
-              <section className="analytics-card analytics-feed-card">
-                <div className="analytics-card-header">
-                  <div>
-                    <p className="portal-kicker">Events</p>
-                    <h2>Recent Game Events</h2>
+                <section className="analytics-card analytics-feed-card">
+                  <div className="analytics-card-header">
+                    <div>
+                      <p className="portal-kicker">Events</p>
+                      <h2>Recent Game Events</h2>
+                    </div>
                   </div>
-                </div>
-                <div className="analytics-recent-list">
-                  {recentAnalyticsGameEvents.length === 0 ? (
-                    <div className="empty-state analytics-empty">No game events yet.</div>
-                  ) : (
-                    recentAnalyticsGameEvents.map((item) => (
-                      <article key={item.id} className="analytics-recent-item">
-                        <div>
-                          <strong>{item.game_name}</strong>
-                          <span>{describeAnalyticsEvent(item)}</span>
-                        </div>
-                        <div className="analytics-recent-meta">
-                          <small>{item.event_type}</small>
-                          <small>{formatTimestamp(item.occurred_at)}</small>
-                        </div>
-                      </article>
-                    ))
-                  )}
-                </div>
-              </section>
+                  <div className="analytics-recent-list">
+                    {recentAnalyticsGameEvents.length === 0 ? (
+                      <div className="empty-state analytics-empty">No game events yet.</div>
+                    ) : (
+                      recentAnalyticsGameEvents.map((item) => (
+                        <article key={item.id} className="analytics-recent-item">
+                          <div>
+                            <strong>{item.game_name}</strong>
+                            <span>{describeAnalyticsEvent(item)}</span>
+                          </div>
+                          <div className="analytics-recent-meta">
+                            <small>{item.event_type}</small>
+                            <small>{formatTimestamp(item.occurred_at)}</small>
+                          </div>
+                        </article>
+                      ))
+                    )}
+                  </div>
+                </section>
+              </div>
             </>
           )}
         </section>
