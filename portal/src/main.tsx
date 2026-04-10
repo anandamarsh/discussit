@@ -827,10 +827,21 @@ function App() {
       ? "Moderator Comments"
       : "Usage Analytics";
   const isCombinedAnalyticsScope = selectedUrl === null;
+  const isSiteAnalyticsScope = selectedUrl === "__site__";
 
   const liveAnalyticsSessions = useMemo(
     () => visibleAnalyticsSessions.filter((item) => isLiveSession(item)).sort((a, b) =>
       new Date(b.last_heartbeat_at).getTime() - new Date(a.last_heartbeat_at).getTime()),
+    [visibleAnalyticsSessions],
+  );
+
+  const visibleSiteAnalyticsSessions = useMemo(
+    () => visibleAnalyticsSessions.filter((item) => item.game_id === "__site__"),
+    [visibleAnalyticsSessions],
+  );
+
+  const visibleGameAnalyticsSessions = useMemo(
+    () => visibleAnalyticsSessions.filter((item) => item.game_id !== "__site__"),
     [visibleAnalyticsSessions],
   );
 
@@ -850,8 +861,10 @@ function App() {
       totalDurationSeconds,
       averageDurationSeconds,
       liveCount: liveAnalyticsSessions.length,
+      siteVisits: visibleSiteAnalyticsSessions.length,
+      gameSessions: visibleGameAnalyticsSessions.length,
     };
-  }, [liveAnalyticsSessions.length, visibleAnalyticsSessions]);
+  }, [liveAnalyticsSessions.length, visibleAnalyticsSessions, visibleGameAnalyticsSessions.length, visibleSiteAnalyticsSessions.length]);
 
   const sessionsByGame = useMemo(() => {
     const groups = new Map<string, {
@@ -863,7 +876,7 @@ function App() {
       totalDurationSeconds: number;
     }>();
 
-    for (const item of analyticsSessions) {
+    for (const item of visibleGameAnalyticsSessions) {
       const current = groups.get(item.game_id) ?? {
         gameId: item.game_id,
         gameName: item.game_name,
@@ -890,7 +903,7 @@ function App() {
         averageDurationSeconds: item.sessions > 0 ? Math.round(item.totalDurationSeconds / item.sessions) : 0,
       }))
       .sort((a, b) => b.sessions - a.sessions || b.active - a.active || a.gameName.localeCompare(b.gameName));
-  }, [analyticsSessions]);
+  }, [visibleGameAnalyticsSessions]);
 
   const topChartGames = useMemo(() => {
     const topGames = sessionsByGame.slice(0, 6);
@@ -937,7 +950,9 @@ function App() {
   }, [analyticsRangeDays]);
 
   const usageChartBars = useMemo(() => {
-    if (visibleAnalyticsSessions.length === 0) {
+    const sourceSessions = isCombinedAnalyticsScope ? visibleGameAnalyticsSessions : visibleAnalyticsSessions;
+
+    if (sourceSessions.length === 0) {
       return { sessionBars: [] as AnalyticsChartBar[], durationBars: [] as AnalyticsChartBar[] };
     }
 
@@ -968,7 +983,7 @@ function App() {
     const labelLookup = new Map(chartLegendItems.map((item) => [item.key, item.label]));
     const trackedGameIds = new Set(topChartGames.map((item) => item.gameId));
 
-    for (const item of visibleAnalyticsSessions) {
+    for (const item of sourceSessions) {
       const bucketDate = startOfBucket(new Date(item.started_at), mode);
       const bucket = bucketMap.get(bucketDate.toISOString());
       if (!bucket) {
@@ -1025,6 +1040,8 @@ function App() {
     analyticsBreakdownMode,
     analyticsRangeDays,
     visibleAnalyticsSessions,
+    visibleGameAnalyticsSessions,
+    isCombinedAnalyticsScope,
     chartLegendItems,
     topChartGames,
   ]);
@@ -1114,6 +1131,31 @@ function App() {
       questionsAnswered,
     };
   }, [visibleAnalyticsGameEvents]);
+
+  const siteVisitTableRows = useMemo(
+    () => [{
+      gameId: "__site__",
+      gameName: "See Maths",
+      sessions: analyticsSummary.totalSessions,
+      uniquePlayers: analyticsSummary.uniquePlayers,
+      averageDurationSeconds: analyticsSummary.averageDurationSeconds,
+      active: analyticsSummary.liveCount,
+    }],
+    [analyticsSummary],
+  );
+
+  const filteredMenuEntries = useMemo(() => {
+    if (viewMode === "comments") {
+      return combinedMenuEntries.filter((group) => !group.isSite);
+    }
+
+    return [...combinedMenuEntries].sort((a, b) => {
+      if (a.isSite !== b.isSite) {
+        return a.isSite ? -1 : 1;
+      }
+      return 0;
+    });
+  }, [combinedMenuEntries, viewMode]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -1444,11 +1486,11 @@ function App() {
                 >
                   <span className="menu-label">
                     <strong>Home</strong>
-                    <small>{viewMode === "comments" ? "All unread comments" : "All games today"}</small>
+                    <small>{viewMode === "comments" ? "All unread comments" : "Games and site visits today"}</small>
                   </span>
                   <span className="menu-count">{viewMode === "comments" ? unreadFeed.length : analyticsTodayCount}</span>
                 </button>
-                {combinedMenuEntries.map((group) => (
+                {filteredMenuEntries.map((group) => (
                   <button
                     type="button"
                     key={group.scopeKey}
@@ -1540,25 +1582,38 @@ function App() {
 
           <div className="analytics-overview-grid">
             <article className="analytics-stat-card">
-              <span className="analytics-stat-label">Sessions</span>
+              <span className="analytics-stat-label">
+                {isSiteAnalyticsScope ? "Site Visits" : isCombinedAnalyticsScope ? "Sessions" : "Sessions"}
+              </span>
               <strong>{analyticsSummary.totalSessions}</strong>
-              <small>Last {analyticsRangeDays === 1 ? "24 hours" : `${analyticsRangeDays} days`}</small>
+              <small>
+                {isSiteAnalyticsScope
+                  ? `Visits in the last ${analyticsRangeDays === 1 ? "24 hours" : `${analyticsRangeDays} days`}`
+                  : `Last ${analyticsRangeDays === 1 ? "24 hours" : `${analyticsRangeDays} days`}`}
+              </small>
             </article>
             <article className="analytics-stat-card">
-              <span className="analytics-stat-label">Players</span>
+              <span className="analytics-stat-label">{isSiteAnalyticsScope ? "Visitors" : "Players"}</span>
               <strong>{analyticsSummary.uniquePlayers}</strong>
-              <small>Anonymous recurring browsers</small>
+              <small>{isSiteAnalyticsScope ? "Anonymous browsers on See Maths" : "Anonymous recurring browsers"}</small>
             </article>
             <article className="analytics-stat-card">
-              <span className="analytics-stat-label">Live Now</span>
+              <span className="analytics-stat-label">{isSiteAnalyticsScope ? "Live Visitors" : "Live Now"}</span>
               <strong>{analyticsSummary.liveCount}</strong>
               <small>Heartbeat seen in the last 90s</small>
             </article>
             <article className="analytics-stat-card">
-              <span className="analytics-stat-label">Average Play</span>
+              <span className="analytics-stat-label">{isSiteAnalyticsScope ? "Average Visit" : "Average Play"}</span>
               <strong>{formatDuration(analyticsSummary.averageDurationSeconds)}</strong>
-              <small>Total play time {formatDuration(analyticsSummary.totalDurationSeconds)}</small>
+              <small>{isSiteAnalyticsScope ? "Total browsing time" : "Total play time"} {formatDuration(analyticsSummary.totalDurationSeconds)}</small>
             </article>
+            {isCombinedAnalyticsScope ? (
+              <article className="analytics-stat-card">
+                <span className="analytics-stat-label">Site Visits</span>
+                <strong>{analyticsSummary.siteVisits}</strong>
+                <small>Visits to See Maths in this window</small>
+              </article>
+            ) : null}
           </div>
 
           {analyticsLoading ? (
@@ -1657,22 +1712,24 @@ function App() {
                 <section className="analytics-card">
                   <div className="analytics-card-header">
                     <div>
-                      <p className="portal-kicker">Games</p>
-                      <h2>Top Games</h2>
+                      <p className="portal-kicker">{isSiteAnalyticsScope ? "Visitors" : "Games"}</p>
+                      <h2>{isSiteAnalyticsScope ? "See Maths Visits" : isCombinedAnalyticsScope ? "Top Games" : "This Game"}</h2>
                     </div>
                   </div>
                   <div className="analytics-table">
                     <div className="analytics-table-row analytics-table-head">
-                      <span>Game</span>
+                      <span>{isSiteAnalyticsScope ? "Scope" : "Game"}</span>
                       <span>Sessions</span>
-                      <span>Players</span>
+                      <span>{isSiteAnalyticsScope ? "Visitors" : "Players"}</span>
                       <span>Avg</span>
                       <span>Live</span>
                     </div>
-                    {sessionsByGame.length === 0 ? (
-                      <div className="empty-state analytics-empty">No sessions recorded yet.</div>
+                    {(isSiteAnalyticsScope ? siteVisitTableRows.length : sessionsByGame.length) === 0 ? (
+                      <div className="empty-state analytics-empty">
+                        {isSiteAnalyticsScope ? "No See Maths visits recorded yet." : "No sessions recorded yet."}
+                      </div>
                     ) : (
-                      sessionsByGame.map((item) => (
+                      (isSiteAnalyticsScope ? siteVisitTableRows : sessionsByGame).map((item) => (
                         <div key={item.gameId} className="analytics-table-row">
                           <span>{item.gameName}</span>
                           <span>{item.sessions}</span>
@@ -1714,40 +1771,82 @@ function App() {
                 <section className="analytics-card">
                   <div className="analytics-card-header">
                     <div>
-                      <p className="portal-kicker">Game Progress</p>
-                      <h2>Rounds And Completions</h2>
+                      <p className="portal-kicker">{isSiteAnalyticsScope ? "Portal Activity" : "Game Progress"}</p>
+                      <h2>{isSiteAnalyticsScope ? "See Maths Activity" : "Rounds And Completions"}</h2>
                     </div>
                   </div>
-                  <div className="analytics-overview-grid analytics-overview-grid-compact">
-                    <article className="analytics-stat-card">
-                      <span className="analytics-stat-label">Rounds</span>
-                      <strong>{roundEventSummary.roundsCompleted}</strong>
-                      <small>Completed monster or platinum rounds</small>
-                    </article>
-                    <article className="analytics-stat-card">
-                      <span className="analytics-stat-label">Levels</span>
-                      <strong>{roundEventSummary.levelsCompleted}</strong>
-                      <small>Levels cleared</small>
-                    </article>
-                    <article className="analytics-stat-card">
-                      <span className="analytics-stat-label">Games</span>
-                      <strong>{roundEventSummary.gamesCompleted}</strong>
-                      <small>Games completed</small>
-                    </article>
-                    <article className="analytics-stat-card">
-                      <span className="analytics-stat-label">Answers</span>
-                      <strong>{roundEventSummary.questionsAnswered}</strong>
-                      <small>Questions answered</small>
-                    </article>
-                  </div>
+                  {isSiteAnalyticsScope ? (
+                    <div className="analytics-overview-grid analytics-overview-grid-compact">
+                      <article className="analytics-stat-card">
+                        <span className="analytics-stat-label">Visits</span>
+                        <strong>{analyticsSummary.totalSessions}</strong>
+                        <small>See Maths page visits in this window</small>
+                      </article>
+                      <article className="analytics-stat-card">
+                        <span className="analytics-stat-label">Visitors</span>
+                        <strong>{analyticsSummary.uniquePlayers}</strong>
+                        <small>Anonymous browsers reaching the portal</small>
+                      </article>
+                      <article className="analytics-stat-card">
+                        <span className="analytics-stat-label">Live</span>
+                        <strong>{analyticsSummary.liveCount}</strong>
+                        <small>Visitors active on See Maths right now</small>
+                      </article>
+                      <article className="analytics-stat-card">
+                        <span className="analytics-stat-label">Avg Visit</span>
+                        <strong>{formatDuration(analyticsSummary.averageDurationSeconds)}</strong>
+                        <small>Average time spent before leaving or launching</small>
+                      </article>
+                    </div>
+                  ) : (
+                    <div className="analytics-overview-grid analytics-overview-grid-compact">
+                      <article className="analytics-stat-card">
+                        <span className="analytics-stat-label">Rounds</span>
+                        <strong>{roundEventSummary.roundsCompleted}</strong>
+                        <small>Completed monster or platinum rounds</small>
+                      </article>
+                      <article className="analytics-stat-card">
+                        <span className="analytics-stat-label">Levels</span>
+                        <strong>{roundEventSummary.levelsCompleted}</strong>
+                        <small>Levels cleared</small>
+                      </article>
+                      <article className="analytics-stat-card">
+                        <span className="analytics-stat-label">Games</span>
+                        <strong>{roundEventSummary.gamesCompleted}</strong>
+                        <small>Games completed</small>
+                      </article>
+                      <article className="analytics-stat-card">
+                        <span className="analytics-stat-label">Answers</span>
+                        <strong>{roundEventSummary.questionsAnswered}</strong>
+                        <small>Questions answered</small>
+                      </article>
+                    </div>
+                  )}
                   <div className="analytics-card-header">
                     <div>
                       <p className="portal-kicker">What Happened</p>
-                      <h2>Recent Round Events</h2>
+                      <h2>{isSiteAnalyticsScope ? "Recent Site Visits" : "Recent Round Events"}</h2>
                     </div>
                   </div>
                   <div className="analytics-recent-list">
-                    {recentAnalyticsGameEvents.filter((item) =>
+                    {isSiteAnalyticsScope ? (
+                      recentAnalyticsSessions.length === 0 ? (
+                        <div className="empty-state analytics-empty">No See Maths visits yet.</div>
+                      ) : (
+                        recentAnalyticsSessions.slice(0, 8).map((item) => (
+                          <article key={`site-${item.session_id}`} className="analytics-recent-item">
+                            <div>
+                              <strong>See Maths</strong>
+                              <span>{mapLocationLabel(item)}</span>
+                            </div>
+                            <div className="analytics-recent-meta">
+                              <small>{formatDuration(effectiveSessionDurationSeconds(item))}</small>
+                              <small>{formatTimestamp(item.started_at)}</small>
+                            </div>
+                          </article>
+                        ))
+                      )
+                    ) : recentAnalyticsGameEvents.filter((item) =>
                       item.event_type === "level_started"
                       || item.event_type === "level_finished"
                       || item.event_type === "monster_round_completed"
