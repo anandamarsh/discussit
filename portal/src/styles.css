@@ -215,7 +215,9 @@ button {
 .menu-mode-switch {
   display: flex;
   gap: 10px;
-  flex-wrap: wrap;
+  flex: 1 1 auto;
+  min-width: 0;
+  flex-wrap: nowrap;
 }
 
 .view-switcher-button,
@@ -231,6 +233,12 @@ button {
   padding: 0.65rem 1rem;
   cursor: pointer;
   font-weight: 700;
+}
+
+.view-switcher-button {
+  flex: 1 1 0;
+  min-width: 0;
+  white-space: nowrap;
 }
 
 .view-switcher-button.is-active,
@@ -622,7 +630,7 @@ button {
 
 .menu-sheet-header {
   display: flex;
-  align-items: center;
+  align-items: stretch;
   justify-content: space-between;
   gap: 12px;
   margin-bottom: 14px;
@@ -683,6 +691,37 @@ button {
   font-size: 0.82rem;
   font-weight: 800;
   text-align: center;
+}
+
+@media (max-width: 560px) {
+  .menu-sheet {
+    width: min(100vw, 420px);
+    padding: 12px;
+  }
+
+  .menu-sheet-header {
+    gap: 8px;
+  }
+
+  .view-switcher-button {
+    gap: 6px;
+    padding: 0.65rem 0.7rem;
+    font-size: 0.95rem;
+  }
+
+  .view-switcher-badge {
+    min-width: 1.45rem;
+    height: 1.45rem;
+    padding: 0 0.35rem;
+    font-size: 0.75rem;
+  }
+
+  .menu-close {
+    width: 42px;
+    height: 42px;
+    flex: 0 0 42px;
+    font-size: 1.25rem;
+  }
 }
 
 .menu-footer {
