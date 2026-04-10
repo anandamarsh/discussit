@@ -99,10 +99,16 @@ function gameSessionLabel(gameName: string, city: string | null, region: string 
   return location ? `${gameName} started in ${location}` : `${gameName} started`;
 }
 
+function siteVisitLabel(city: string | null, region: string | null, countryCode: string | null) {
+  const location = [city, region, countryCode].filter(Boolean).join(", ");
+  return location ? `New See Maths visit from ${location}` : "New See Maths visit";
+}
+
 async function sendSessionStartPush(
   admin: ReturnType<typeof createClient>,
   session: {
     session_id: string;
+    game_id: string;
     game_name: string;
     city: string | null;
     region: string | null;
@@ -129,8 +135,11 @@ async function sendSessionStartPush(
   }
 
   const notificationPayload = JSON.stringify({
-    title: "See Maths Session Started",
-    body: gameSessionLabel(session.game_name, session.city, session.region, session.country_code),
+    title: session.game_id === "__site__" ? "See Maths Site Visit" : "See Maths Session Started",
+    body:
+      session.game_id === "__site__"
+        ? siteVisitLabel(session.city, session.region, session.country_code)
+        : gameSessionLabel(session.game_name, session.city, session.region, session.country_code),
     url: moderatorPortalUrl(),
     tag: `analytics-session-${session.session_id}`,
   });
@@ -394,7 +403,7 @@ Deno.serve(async (request) => {
       return json(500, { error: "Failed to record analytics session" });
     }
 
-    if (eventType === "session_started" && gameId !== "__site__") {
+    if (eventType === "session_started") {
       await sendSessionStartPush(admin, row);
     }
 
