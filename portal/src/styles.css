@@ -355,6 +355,10 @@ button {
   overflow: hidden;
 }
 
+.analytics-chart-card {
+  overflow: visible;
+}
+
 .analytics-card-header {
   display: flex;
   align-items: center;

@@ -1575,7 +1575,7 @@ function App() {
           ) : (
             <>
               <div className="analytics-chart-grid">
-                <section className="analytics-card">
+                <section className="analytics-card analytics-chart-card">
                   <div className="analytics-card-header">
                     <div>
                       <p className="portal-kicker">Trends</p>
@@ -1588,7 +1588,7 @@ function App() {
                   />
                 </section>
 
-                <section className="analytics-card">
+                <section className="analytics-card analytics-chart-card">
                   <div className="analytics-card-header">
                     <div>
                       <p className="portal-kicker">Play Time</p>
