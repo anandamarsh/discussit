@@ -86,6 +86,10 @@ const knownAppScopes = [
 const knownAppScopeByKey = new Map<string, (typeof knownAppScopes)[number]>(
   knownAppScopes.map((item) => [item.scopeKey, item]),
 );
+const menuScopeOrder = new Map<string, number>(
+  ["__site__", ...knownAppScopes.filter((item) => item.scopeKey !== "__site__").map((item) => item.scopeKey)]
+    .map((scopeKey, index) => [scopeKey, index]),
+);
 
 function parseUrlLike(value: string) {
   try {
@@ -138,6 +142,22 @@ function labelForUrl(pageUrl: string) {
 
 function subtitleForScope(scopeKey: string, fallback: string) {
   return knownAppScopeByKey.get(scopeKey)?.subtitle ?? fallback;
+}
+
+function compareMenuEntries(
+  a: { scopeKey: string; label: string },
+  b: { scopeKey: string; label: string },
+) {
+  const aRank = menuScopeOrder.get(a.scopeKey);
+  const bRank = menuScopeOrder.get(b.scopeKey);
+
+  if (aRank !== undefined || bRank !== undefined) {
+    if (aRank === undefined) return 1;
+    if (bRank === undefined) return -1;
+    if (aRank !== bRank) return aRank - bRank;
+  }
+
+  return a.label.localeCompare(b.label);
 }
 
 function formatDuration(seconds: number) {
@@ -786,15 +806,8 @@ function App() {
       groups.set(item.scopeKey, current);
     }
 
-    return Array.from(groups.values()).sort((a, b) => {
-      if (a.isSite !== b.isSite) {
-        return a.isSite ? 1 : -1;
-      }
-      const aBadge = viewMode === "comments" ? a.unread : a.todayUsage;
-      const bBadge = viewMode === "comments" ? b.unread : b.todayUsage;
-      return bBadge - aBadge || a.label.localeCompare(b.label);
-    });
-  }, [analyticsScopeMap, urlGroups, viewMode]);
+    return Array.from(groups.values()).sort(compareMenuEntries);
+  }, [analyticsScopeMap, urlGroups]);
 
   const analyticsGameScopeById = useMemo(() => {
     const scopeByGameId = new Map<string, string>();
@@ -1144,18 +1157,7 @@ function App() {
     [analyticsSummary],
   );
 
-  const filteredMenuEntries = useMemo(() => {
-    if (viewMode === "comments") {
-      return combinedMenuEntries;
-    }
-
-    return [...combinedMenuEntries].sort((a, b) => {
-      if (a.isSite !== b.isSite) {
-        return a.isSite ? -1 : 1;
-      }
-      return 0;
-    });
-  }, [combinedMenuEntries, viewMode]);
+  const filteredMenuEntries = useMemo(() => combinedMenuEntries, [combinedMenuEntries]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
