@@ -1146,7 +1146,7 @@ function App() {
 
   const filteredMenuEntries = useMemo(() => {
     if (viewMode === "comments") {
-      return combinedMenuEntries.filter((group) => !group.isSite);
+      return combinedMenuEntries;
     }
 
     return [...combinedMenuEntries].sort((a, b) => {
