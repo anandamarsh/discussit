@@ -24,6 +24,10 @@ type AppPayload = {
   appScope?: string;
 };
 
+type PreferencesPayload = {
+  notifyRoundEvents?: boolean;
+};
+
 function json(status: number, body: Record<string, unknown>) {
   return new Response(JSON.stringify(body), {
     status,
@@ -51,6 +55,7 @@ Deno.serve(async (request) => {
     endpoint?: string;
     subscription?: PushSubscriptionPayload;
     app?: AppPayload;
+    preferences?: PreferencesPayload;
   };
 
   try {
@@ -86,6 +91,7 @@ Deno.serve(async (request) => {
   const appName = payload.app?.appName?.trim() || "DiscussIt Moderator";
   const appOrigin = payload.app?.appOrigin?.trim() || "https://discussit-portal.vercel.app";
   const appScope = payload.app?.appScope?.trim() || "https://discussit-portal.vercel.app/";
+  const notifyRoundEvents = payload.preferences?.notifyRoundEvents === true;
 
   const { error } = await admin.from("push_subscriptions").upsert(
     {
@@ -97,6 +103,7 @@ Deno.serve(async (request) => {
       app_name: appName,
       app_origin: appOrigin,
       app_scope: appScope,
+      notify_round_events: notifyRoundEvents,
     },
     { onConflict: "endpoint" },
   );

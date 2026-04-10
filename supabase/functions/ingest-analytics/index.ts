@@ -42,6 +42,7 @@ type StoredPushSubscription = {
   keys_auth: string;
   keys_p256dh: string;
   app_id?: string | null;
+  notify_round_events?: boolean | null;
 };
 
 function json(status: number, body: Record<string, unknown>) {
@@ -165,6 +166,103 @@ async function sendSessionStartPush(
   );
 }
 
+function shouldSendRoundEventPush(eventName: string | null) {
+  return [
+    "monster_round_completed",
+    "platinum_round_completed",
+    "level_completed",
+    "game_completed",
+  ].includes(eventName ?? "");
+}
+
+function gameEventPushLabel(
+  gameName: string,
+  eventName: string,
+  payload: Record<string, unknown>,
+) {
+  if (eventName === "monster_round_completed") {
+    return `${gameName}: monster round completed`;
+  }
+  if (eventName === "platinum_round_completed") {
+    return `${gameName}: platinum round completed`;
+  }
+  if (eventName === "level_completed") {
+    const level = typeof payload.level === "number" || typeof payload.level === "string" ? payload.level : null;
+    return level ? `${gameName}: level ${level} completed` : `${gameName}: level completed`;
+  }
+  if (eventName === "game_completed") {
+    return `${gameName}: game completed`;
+  }
+  return `${gameName}: ${eventName.replace(/_/g, " ")}`;
+}
+
+async function sendRoundEventPush(
+  admin: ReturnType<typeof createClient>,
+  event: {
+    session_id: string;
+    game_name: string;
+    event_name: string;
+    payload_json: Record<string, unknown>;
+  },
+) {
+  const vapidPublicKey = Deno.env.get("VAPID_PUBLIC_KEY");
+  const vapidPrivateKey = Deno.env.get("VAPID_PRIVATE_KEY");
+  const vapidSubject = Deno.env.get("VAPID_SUBJECT") ?? "mailto:noreply@discussit.app";
+
+  if (!vapidPublicKey || !vapidPrivateKey) {
+    return;
+  }
+
+  webpush.setVapidDetails(vapidSubject, vapidPublicKey, vapidPrivateKey);
+
+  const { data: subscriptions, error } = await admin
+    .from("push_subscriptions")
+    .select("endpoint, expiration_time, keys_auth, keys_p256dh, app_id, notify_round_events")
+    .eq("app_id", "discussit-moderator")
+    .eq("notify_round_events", true);
+
+  if (error || !subscriptions?.length) {
+    return;
+  }
+
+  const notificationPayload = JSON.stringify({
+    title: "See Maths Round Update",
+    body: gameEventPushLabel(event.game_name, event.event_name, event.payload_json),
+    url: moderatorPortalUrl(),
+    tag: `analytics-game-event-${event.session_id}-${event.event_name}`,
+  });
+
+  await Promise.all(
+    (subscriptions as StoredPushSubscription[]).map(async (subscription) => {
+      try {
+        await webpush.sendNotification(
+          {
+            endpoint: subscription.endpoint,
+            expirationTime: subscription.expiration_time ?? null,
+            keys: {
+              auth: subscription.keys_auth,
+              p256dh: subscription.keys_p256dh,
+            },
+          },
+          notificationPayload,
+        );
+      } catch (error) {
+        const statusCode =
+          typeof error === "object" && error !== null && "statusCode" in error
+            ? Number((error as { statusCode?: number }).statusCode)
+            : 0;
+
+        if (statusCode === 404 || statusCode === 410) {
+          await admin.from("push_subscriptions").delete().eq("endpoint", subscription.endpoint);
+          return;
+        }
+
+        console.error("Round event push delivery failed", error);
+      }
+    }),
+  );
+}
+
 Deno.serve(async (request) => {
   if (request.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -241,6 +339,15 @@ Deno.serve(async (request) => {
 
     if (error) {
       return json(500, { error: "Failed to record analytics game event" });
+    }
+
+    if (shouldSendRoundEventPush(eventName)) {
+      await sendRoundEventPush(admin, {
+        session_id: sessionId,
+        game_name: gameName,
+        event_name: eventName ?? "game_event",
+        payload_json: payloadJson,
+      });
     }
 
     return new Response(null, { status: 204, headers: corsHeaders });

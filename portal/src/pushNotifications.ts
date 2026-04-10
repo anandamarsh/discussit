@@ -20,6 +20,10 @@ type AppPushMetadata = {
   appScope: string;
 };
 
+type PushDeliveryPreferences = {
+  notifyRoundEvents: boolean;
+};
+
 function getAppPushMetadata(): AppPushMetadata {
   const scopeUrl = new URL("./", window.location.href);
   return {
@@ -99,6 +103,7 @@ function serializePushSubscription(subscription: PushSubscription): SerializedPu
 async function savePushSubscription(subscription: PushSubscription) {
   const payload = serializePushSubscription(subscription);
   const app = getAppPushMetadata();
+  const preferences = readPushDeliveryPreferences();
   const response = await fetch(`${supabaseUrl}/functions/v1/save-push-subscription`, {
     method: "POST",
     headers: {
@@ -106,7 +111,7 @@ async function savePushSubscription(subscription: PushSubscription) {
       apikey: supabaseAnonKey,
       Authorization: `Bearer ${supabaseAnonKey}`,
     },
-    body: JSON.stringify({ subscription: payload, app }),
+    body: JSON.stringify({ subscription: payload, app, preferences }),
   });
 
   if (!response.ok) {
@@ -114,6 +119,32 @@ async function savePushSubscription(subscription: PushSubscription) {
   }
 
   return payload;
+}
+
+function readPushDeliveryPreferences(): PushDeliveryPreferences {
+  if (typeof window === "undefined") {
+    return { notifyRoundEvents: false };
+  }
+
+  return {
+    notifyRoundEvents: window.localStorage.getItem("discussit:moderator:notify-round-events") === "on",
+  };
+}
+
+async function deletePushSubscription(endpoint: string) {
+  const response = await fetch(`${supabaseUrl}/functions/v1/save-push-subscription`, {
+    method: "DELETE",
+    headers: {
+      "Content-Type": "application/json",
+      apikey: supabaseAnonKey,
+      Authorization: `Bearer ${supabaseAnonKey}`,
+    },
+    body: JSON.stringify({ endpoint }),
+  });
+
+  if (!response.ok) {
+    throw new Error(await readErrorMessage(response, "Failed to delete push subscription."));
+  }
 }
 
 export async function ensurePushSubscription() {
@@ -137,6 +168,44 @@ export async function ensurePushSubscription() {
 
   await savePushSubscription(subscription);
   return subscription;
+}
+
+export async function disablePushSubscription() {
+  requirePushConfig();
+
+  if (typeof window === "undefined" || !("serviceWorker" in navigator)) {
+    return;
+  }
+
+  const registration = await navigator.serviceWorker.getRegistration();
+  if (!registration) {
+    return;
+  }
+
+  const existing = await registration.pushManager.getSubscription();
+  if (!existing) {
+    return;
+  }
+
+  const endpoint = existing.endpoint;
+  await existing.unsubscribe().catch(() => {});
+  await deletePushSubscription(endpoint).catch(() => {});
+}
+
+export async function refreshPushSubscriptionPreferences() {
+  requirePushConfig();
+
+  if (typeof window === "undefined" || !("serviceWorker" in navigator)) {
+    return;
+  }
+
+  const registration = await navigator.serviceWorker.getRegistration();
+  const existing = await registration?.pushManager.getSubscription();
+  if (!existing) {
+    return;
+  }
+
+  await savePushSubscription(existing);
 }
 
 export async function sendTestPush() {

@@ -8,7 +8,12 @@ import {
   type AnalyticsSessionRecord,
   updateCommentReactions,
 } from "./supabase";
-import { ensurePushSubscription, sendTestPush } from "./pushNotifications";
+import {
+  disablePushSubscription,
+  ensurePushSubscription,
+  refreshPushSubscriptionPreferences,
+  sendTestPush,
+} from "./pushNotifications";
 import { AnalyticsBarChart, type AnalyticsChartBar } from "./AnalyticsBarChart";
 import { UsageMap, type UsageMapLocation } from "./UsageMap";
 import "./styles.css";
@@ -44,6 +49,7 @@ type BreakdownMode = "hour" | "day" | "week";
 const moderatorEmail = "amarsh.anand@gmail.com";
 const autoSignInAttemptKey = "discussit:moderator:auto-signin-attempted";
 const notificationPreferenceKey = "discussit:moderator:notifications";
+const roundNotificationPreferenceKey = "discussit:moderator:notify-round-events";
 
 function reactionsStorageKey() {
   return "discussit:moderator:reactions:v1";
@@ -291,6 +297,14 @@ function readSelectedUrlFromLocation() {
   return value && value.trim().length > 0 ? value : null;
 }
 
+function readRoundNotificationPreference() {
+  if (typeof window === "undefined") {
+    return "off";
+  }
+
+  return window.localStorage.getItem(roundNotificationPreferenceKey) ?? "off";
+}
+
 function App() {
   const [session, setSession] = useState<Session | null>(null);
   const [authReady, setAuthReady] = useState(false);
@@ -301,9 +315,10 @@ function App() {
   const [pendingDelete, setPendingDelete] = useState<FeedItem | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [notificationPreference, setNotificationPreference] = useState(readNotificationPreference);
+  const [roundNotificationPreference, setRoundNotificationPreference] = useState(readRoundNotificationPreference);
   const [settingsError, setSettingsError] = useState("");
   const [sendingPush, setSendingPush] = useState(false);
-  const [viewMode, setViewMode] = useState<ViewMode>("analytics");
+  const [viewMode, setViewMode] = useState<ViewMode>("comments");
   const [analyticsRangeDays, setAnalyticsRangeDays] = useState<RangeDays>(7);
   const [analyticsBreakdownMode, setAnalyticsBreakdownMode] = useState<BreakdownMode>("day");
   const [analyticsSessions, setAnalyticsSessions] = useState<AnalyticsSessionRecord[]>([]);
@@ -556,43 +571,14 @@ function App() {
       .filter((item) => item.pageUrl === selectedUrl)
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   }, [feed, selectedUrl, unreadFeed]);
-
-  const currentTitle = viewMode === "analytics"
-    ? "Usage Analytics"
-    : selectedUrl
-      ? labelForUrl(selectedUrl)
-      : "Moderator Panel";
+  const selectedScopeLabel = selectedUrl ? labelForUrl(selectedUrl) : null;
   const notificationsEnabled = notificationPreference === "on";
+  const roundNotificationsEnabled = roundNotificationPreference === "on";
   const reactionActorName =
     session?.user.user_metadata?.full_name
     ?? session?.user.user_metadata?.name
     ?? session?.user.email?.split("@")[0]
     ?? "Moderator";
-
-  const liveAnalyticsSessions = useMemo(
-    () => analyticsSessions.filter((item) => isLiveSession(item)).sort((a, b) =>
-      new Date(b.last_heartbeat_at).getTime() - new Date(a.last_heartbeat_at).getTime()),
-    [analyticsSessions],
-  );
-
-  const analyticsSummary = useMemo(() => {
-    const uniquePlayers = new Set(analyticsSessions.map((item) => item.player_id)).size;
-    const totalDurationSeconds = analyticsSessions.reduce(
-      (sum, item) => sum + effectiveSessionDurationSeconds(item),
-      0,
-    );
-    const averageDurationSeconds = analyticsSessions.length > 0
-      ? Math.round(totalDurationSeconds / analyticsSessions.length)
-      : 0;
-
-    return {
-      totalSessions: analyticsSessions.length,
-      uniquePlayers,
-      totalDurationSeconds,
-      averageDurationSeconds,
-      liveCount: liveAnalyticsSessions.length,
-    };
-  }, [analyticsSessions, liveAnalyticsSessions.length]);
 
   const analyticsTodayCount = useMemo(() => {
     const today = new Date();
@@ -604,6 +590,136 @@ function App() {
       return isSameLocalDay(startedAt, today) ? count + 1 : count;
     }, 0);
   }, [analyticsSessions]);
+
+  const analyticsScopeMap = useMemo(() => {
+    const groups = new Map<string, {
+      scopeUrl: string;
+      label: string;
+      subtitle: string;
+      todayUsage: number;
+    }>();
+    const today = new Date();
+
+    for (const item of analyticsSessions) {
+      const scopeUrl = item.game_url || item.shell_url;
+      const label = labelForUrl(scopeUrl || item.game_name);
+      const current = groups.get(label) ?? {
+        scopeUrl,
+        label,
+        subtitle: scopeUrl || item.game_name,
+        todayUsage: 0,
+      };
+
+      const startedAt = new Date(item.started_at);
+      if (!Number.isNaN(startedAt.getTime()) && isSameLocalDay(startedAt, today)) {
+        current.todayUsage += 1;
+      }
+
+      groups.set(label, current);
+    }
+
+    return Array.from(groups.values()).sort((a, b) => b.todayUsage - a.todayUsage || a.label.localeCompare(b.label));
+  }, [analyticsSessions]);
+
+  const combinedMenuEntries = useMemo(() => {
+    const groups = new Map<string, {
+      scopeUrl: string;
+      label: string;
+      subtitle: string;
+      unread: number;
+      totalComments: number;
+      todayUsage: number;
+    }>();
+
+    for (const group of urlGroups) {
+      const label = labelForUrl(group.pageUrl);
+      groups.set(label, {
+        scopeUrl: group.pageUrl,
+        label,
+        subtitle: group.pageUrl,
+        unread: group.unread,
+        totalComments: group.total,
+        todayUsage: 0,
+      });
+    }
+
+    for (const item of analyticsScopeMap) {
+      const current = groups.get(item.label) ?? {
+        scopeUrl: item.scopeUrl,
+        label: item.label,
+        subtitle: item.subtitle,
+        unread: 0,
+        totalComments: 0,
+        todayUsage: 0,
+      };
+      current.scopeUrl = current.scopeUrl || item.scopeUrl;
+      current.subtitle = current.subtitle || item.subtitle;
+      current.todayUsage = item.todayUsage;
+      groups.set(item.label, current);
+    }
+
+    return Array.from(groups.values()).sort((a, b) => {
+      const aBadge = viewMode === "comments" ? a.unread : a.todayUsage;
+      const bBadge = viewMode === "comments" ? b.unread : b.todayUsage;
+      return bBadge - aBadge || a.label.localeCompare(b.label);
+    });
+  }, [analyticsScopeMap, urlGroups, viewMode]);
+
+  const analyticsGameScopeById = useMemo(() => {
+    const scopeByGameId = new Map<string, string>();
+    for (const item of analyticsSessions) {
+      scopeByGameId.set(item.game_id, labelForUrl(item.game_url || item.shell_url || item.game_name));
+    }
+    return scopeByGameId;
+  }, [analyticsSessions]);
+
+  const visibleAnalyticsSessions = useMemo(() => {
+    if (!selectedScopeLabel) {
+      return analyticsSessions;
+    }
+
+    return analyticsSessions.filter((item) =>
+      labelForUrl(item.game_url || item.shell_url || item.game_name) === selectedScopeLabel);
+  }, [analyticsSessions, selectedScopeLabel]);
+
+  const visibleAnalyticsGameEvents = useMemo(() => {
+    if (!selectedScopeLabel) {
+      return analyticsGameEvents;
+    }
+
+    return analyticsGameEvents.filter((item) => analyticsGameScopeById.get(item.game_id) === selectedScopeLabel);
+  }, [analyticsGameEvents, analyticsGameScopeById, selectedScopeLabel]);
+
+  const currentTitle = selectedScopeLabel
+    ? `${selectedScopeLabel} ${viewMode === "comments" ? "Comments" : "Analytics"}`
+    : viewMode === "comments"
+      ? "Moderator Comments"
+      : "Usage Analytics";
+
+  const liveAnalyticsSessions = useMemo(
+    () => visibleAnalyticsSessions.filter((item) => isLiveSession(item)).sort((a, b) =>
+      new Date(b.last_heartbeat_at).getTime() - new Date(a.last_heartbeat_at).getTime()),
+    [visibleAnalyticsSessions],
+  );
+
+  const analyticsSummary = useMemo(() => {
+    const uniquePlayers = new Set(visibleAnalyticsSessions.map((item) => item.player_id)).size;
+    const totalDurationSeconds = visibleAnalyticsSessions.reduce(
+      (sum, item) => sum + effectiveSessionDurationSeconds(item),
+      0,
+    );
+    const averageDurationSeconds = visibleAnalyticsSessions.length > 0
+      ? Math.round(totalDurationSeconds / visibleAnalyticsSessions.length)
+      : 0;
+
+    return {
+      totalSessions: visibleAnalyticsSessions.length,
+      uniquePlayers,
+      totalDurationSeconds,
+      averageDurationSeconds,
+      liveCount: liveAnalyticsSessions.length,
+    };
+  }, [liveAnalyticsSessions.length, visibleAnalyticsSessions]);
 
   const sessionsByGame = useMemo(() => {
     const groups = new Map<string, {
@@ -689,7 +805,7 @@ function App() {
   }, [analyticsRangeDays]);
 
   const usageChartBars = useMemo(() => {
-    if (analyticsSessions.length === 0) {
+    if (visibleAnalyticsSessions.length === 0) {
       return { sessionBars: [] as AnalyticsChartBar[], durationBars: [] as AnalyticsChartBar[] };
     }
 
@@ -720,7 +836,7 @@ function App() {
     const labelLookup = new Map(chartLegendItems.map((item) => [item.key, item.label]));
     const trackedGameIds = new Set(topChartGames.map((item) => item.gameId));
 
-    for (const item of analyticsSessions) {
+    for (const item of visibleAnalyticsSessions) {
       const bucketDate = startOfBucket(new Date(item.started_at), mode);
       const bucket = bucketMap.get(bucketDate.toISOString());
       if (!bucket) {
@@ -776,7 +892,7 @@ function App() {
   }, [
     analyticsBreakdownMode,
     analyticsRangeDays,
-    analyticsSessions,
+    visibleAnalyticsSessions,
     chartLegendItems,
     topChartGames,
   ]);
@@ -784,7 +900,7 @@ function App() {
   const mapLocations = useMemo(() => {
     const groups = new Map<string, UsageMapLocation>();
 
-    for (const item of analyticsSessions) {
+    for (const item of visibleAnalyticsSessions) {
       if (typeof item.latitude !== "number" || typeof item.longitude !== "number") {
         continue;
       }
@@ -808,12 +924,12 @@ function App() {
     }
 
     return Array.from(groups.values()).sort((a, b) => b.count - a.count);
-  }, [analyticsSessions]);
+  }, [visibleAnalyticsSessions]);
 
   const locationBreakdown = useMemo(() => {
     const groups = new Map<string, { label: string; sessions: number; active: number }>();
 
-    for (const item of analyticsSessions) {
+    for (const item of visibleAnalyticsSessions) {
       const label = mapLocationLabel(item);
       const current = groups.get(label) ?? { label, sessions: 0, active: 0 };
       current.sessions += 1;
@@ -826,16 +942,16 @@ function App() {
     return Array.from(groups.values())
       .sort((a, b) => b.sessions - a.sessions || b.active - a.active || a.label.localeCompare(b.label))
       .slice(0, 8);
-  }, [analyticsSessions]);
+  }, [visibleAnalyticsSessions]);
 
   const recentAnalyticsSessions = useMemo(
-    () => analyticsSessions.slice(0, 12),
-    [analyticsSessions],
+    () => visibleAnalyticsSessions.slice(0, 12),
+    [visibleAnalyticsSessions],
   );
 
   const recentAnalyticsGameEvents = useMemo(
-    () => analyticsGameEvents.slice(0, 12),
-    [analyticsGameEvents],
+    () => visibleAnalyticsGameEvents.slice(0, 12),
+    [visibleAnalyticsGameEvents],
   );
 
   useEffect(() => {
@@ -964,6 +1080,13 @@ function App() {
     }
   };
 
+  const setRoundPreference = (value: "on" | "off") => {
+    setRoundNotificationPreference(value);
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(roundNotificationPreferenceKey, value);
+    }
+  };
+
   const chooseUrl = (value: string | null) => {
     setSelectedUrl(value);
 
@@ -985,6 +1108,7 @@ function App() {
     setSettingsError("");
 
     if (!enabled) {
+      await disablePushSubscription().catch(() => {});
       setPreference("off");
       return;
     }
@@ -1007,6 +1131,22 @@ function App() {
     } catch (error) {
       setPreference("off");
       setSettingsError(error instanceof Error ? error.message : "Failed to enable notifications.");
+    }
+  };
+
+  const toggleRoundEventNotifications = async (enabled: boolean) => {
+    setSettingsError("");
+    const nextValue = enabled ? "on" : "off";
+    setRoundPreference(nextValue);
+
+    if (!notificationsEnabled) {
+      return;
+    }
+
+    try {
+      await refreshPushSubscriptionPreferences();
+    } catch (error) {
+      setSettingsError(error instanceof Error ? error.message : "Failed to update round notification preference.");
     }
   };
 
@@ -1103,31 +1243,29 @@ function App() {
         <div className="portal-header-spacer" />
       </header>
 
-      <section className="view-switcher" aria-label="Moderator views">
-        <button
-          type="button"
-          className={`view-switcher-button ${viewMode === "comments" ? "is-active" : ""}`}
-          onClick={() => setViewMode("comments")}
-        >
-          <span>Comments</span>
-          <span className="view-switcher-badge">{unreadFeed.length}</span>
-        </button>
-        <button
-          type="button"
-          className={`view-switcher-button ${viewMode === "analytics" ? "is-active" : ""}`}
-          onClick={() => setViewMode("analytics")}
-        >
-          <span>Analytics</span>
-          <span className="view-switcher-badge">{analyticsTodayCount}</span>
-        </button>
-      </section>
-
       {menuOpen ? (
         <>
           <button type="button" className="menu-backdrop" aria-label="Close menu" onClick={() => setMenuOpen(false)} />
           <aside className="menu-sheet">
             <div className="menu-sheet-header">
-              <span />
+              <div className="menu-mode-switch" aria-label="Moderator mode">
+                <button
+                  type="button"
+                  className={`view-switcher-button ${viewMode === "comments" ? "is-active" : ""}`}
+                  onClick={() => setViewMode("comments")}
+                >
+                  <span>Comments</span>
+                  <span className="view-switcher-badge">{unreadFeed.length}</span>
+                </button>
+                <button
+                  type="button"
+                  className={`view-switcher-button ${viewMode === "analytics" ? "is-active" : ""}`}
+                  onClick={() => setViewMode("analytics")}
+                >
+                  <span>Analytics</span>
+                  <span className="view-switcher-badge">{analyticsTodayCount}</span>
+                </button>
+              </div>
               <button type="button" className="menu-close" onClick={() => setMenuOpen(false)}>
                 ✕
               </button>
@@ -1145,25 +1283,25 @@ function App() {
                 >
                   <span className="menu-label">
                     <strong>Home</strong>
-                    <small>All unapproved comments</small>
+                    <small>{viewMode === "comments" ? "All unread comments" : "All games today"}</small>
                   </span>
-                  <span className="menu-count">{unreadFeed.length}</span>
+                  <span className="menu-count">{viewMode === "comments" ? unreadFeed.length : analyticsTodayCount}</span>
                 </button>
-                {urlGroups.map((group) => (
+                {combinedMenuEntries.map((group) => (
                   <button
                     type="button"
-                    key={group.pageUrl}
-                    className={`menu-item ${selectedUrl === group.pageUrl ? "is-active" : ""}`}
+                    key={group.scopeUrl}
+                    className={`menu-item ${selectedUrl === group.scopeUrl ? "is-active" : ""}`}
                     onClick={() => {
-                      chooseUrl(group.pageUrl);
+                      chooseUrl(group.scopeUrl);
                       setMenuOpen(false);
                     }}
                   >
                     <span className="menu-label">
-                      <strong>{labelForUrl(group.pageUrl)}</strong>
-                      <small>{group.pageUrl}</small>
+                      <strong>{group.label}</strong>
+                      <small>{viewMode === "comments" ? group.subtitle : `${group.todayUsage} today`}</small>
                     </span>
-                    <span className="menu-count">{group.unread > 0 ? group.unread : group.total}</span>
+                    <span className="menu-count">{viewMode === "comments" ? group.unread : group.todayUsage}</span>
                   </button>
                 ))}
               </div>
@@ -1583,6 +1721,27 @@ function App() {
                 </span>
               </label>
             </div>
+
+            {notificationsEnabled ? (
+              <div className="settings-switch-row">
+                <span className="settings-label-group">
+                  <span className="settings-label">Notify On Each Round</span>
+                  <span className="settings-note">Includes round completions, level clears, and game completions.</span>
+                </span>
+                <label className="settings-switch" aria-label="Notify on each round">
+                  <input
+                    type="checkbox"
+                    checked={roundNotificationsEnabled}
+                    onChange={(event) => {
+                      void toggleRoundEventNotifications(event.currentTarget.checked);
+                    }}
+                  />
+                  <span className="settings-switch-track">
+                    <span className="settings-switch-thumb" />
+                  </span>
+                </label>
+              </div>
+            ) : null}
 
             {settingsError ? <p className="settings-note settings-error">{settingsError}</p> : null}
           </div>
