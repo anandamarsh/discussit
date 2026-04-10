@@ -177,8 +177,12 @@ async function sendSessionStartPush(
 
 function shouldSendRoundEventPush(eventName: string | null) {
   return [
+    "monster_round_started",
     "monster_round_completed",
+    "platinum_round_started",
     "platinum_round_completed",
+    "level_started",
+    "level_finished",
     "level_completed",
     "game_completed",
   ].includes(eventName ?? "");
@@ -189,11 +193,25 @@ function gameEventPushLabel(
   eventName: string,
   payload: Record<string, unknown>,
 ) {
+  if (eventName === "monster_round_started") {
+    return `${gameName}: monster round started`;
+  }
   if (eventName === "monster_round_completed") {
     return `${gameName}: monster round completed`;
   }
+  if (eventName === "platinum_round_started") {
+    return `${gameName}: platinum round started`;
+  }
   if (eventName === "platinum_round_completed") {
     return `${gameName}: platinum round completed`;
+  }
+  if (eventName === "level_started") {
+    const level = typeof payload.level === "number" || typeof payload.level === "string" ? payload.level : null;
+    return level ? `${gameName}: level ${level} started` : `${gameName}: level started`;
+  }
+  if (eventName === "level_finished") {
+    const level = typeof payload.level === "number" || typeof payload.level === "string" ? payload.level : null;
+    return level ? `${gameName}: level ${level} finished` : `${gameName}: level finished`;
   }
   if (eventName === "level_completed") {
     const level = typeof payload.level === "number" || typeof payload.level === "string" ? payload.level : null;
@@ -331,6 +349,9 @@ Deno.serve(async (request) => {
 
   if (eventType === "game_event") {
     const occurredAt = normalizeDate(payload.sentAt);
+    if (eventName === "question_answered") {
+      return new Response(null, { status: 204, headers: corsHeaders });
+    }
     const payloadJson =
       payload.payload && typeof payload.payload === "object" && !Array.isArray(payload.payload)
         ? payload.payload

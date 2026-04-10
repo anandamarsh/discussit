@@ -1148,10 +1148,14 @@ function App() {
     let roundsCompleted = 0;
     let levelsCompleted = 0;
     let gamesCompleted = 0;
-    let questionsAnswered = 0;
 
     for (const item of visibleAnalyticsGameEvents) {
-      if (item.event_type === "monster_round_completed" || item.event_type === "platinum_round_completed") {
+      if (
+        item.event_type === "monster_round_started"
+        || item.event_type === "monster_round_completed"
+        || item.event_type === "platinum_round_started"
+        || item.event_type === "platinum_round_completed"
+      ) {
         roundsCompleted += 1;
       }
       if (item.event_type === "level_completed") {
@@ -1160,16 +1164,12 @@ function App() {
       if (item.event_type === "game_completed") {
         gamesCompleted += 1;
       }
-      if (item.event_type === "question_answered") {
-        questionsAnswered += 1;
-      }
     }
 
     return {
       roundsCompleted,
       levelsCompleted,
       gamesCompleted,
-      questionsAnswered,
     };
   }, [visibleAnalyticsGameEvents]);
 
@@ -1854,9 +1854,9 @@ function App() {
                         <small>Games completed</small>
                       </article>
                       <article className="analytics-stat-card">
-                        <span className="analytics-stat-label">Answers</span>
-                        <strong>{roundEventSummary.questionsAnswered}</strong>
-                        <small>Questions answered</small>
+                        <span className="analytics-stat-label">Levels</span>
+                        <strong>{roundEventSummary.levelsCompleted + roundEventSummary.gamesCompleted}</strong>
+                        <small>Level and finale milestones</small>
                       </article>
                     </div>
                   )}
@@ -1887,7 +1887,9 @@ function App() {
                     ) : recentAnalyticsGameEvents.filter((item) =>
                       item.event_type === "level_started"
                       || item.event_type === "level_finished"
+                      || item.event_type === "monster_round_started"
                       || item.event_type === "monster_round_completed"
+                      || item.event_type === "platinum_round_started"
                       || item.event_type === "platinum_round_completed"
                       || item.event_type === "level_completed"
                       || item.event_type === "game_completed").length === 0 ? (
@@ -1897,7 +1899,9 @@ function App() {
                           .filter((item) =>
                             item.event_type === "level_started"
                             || item.event_type === "level_finished"
+                            || item.event_type === "monster_round_started"
                             || item.event_type === "monster_round_completed"
+                            || item.event_type === "platinum_round_started"
                             || item.event_type === "platinum_round_completed"
                             || item.event_type === "level_completed"
                             || item.event_type === "game_completed")
