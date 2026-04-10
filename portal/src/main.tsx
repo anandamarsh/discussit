@@ -48,6 +48,7 @@ const moderatorEmail = "amarsh.anand@gmail.com";
 const autoSignInAttemptKey = "discussit:moderator:auto-signin-attempted";
 const notificationPreferenceKey = "discussit:moderator:notifications";
 const roundNotificationPreferenceKey = "discussit:moderator:notify-round-events";
+const authReturnUrlStorageKey = "discussit:moderator:auth-return-url";
 const knownSiteHosts = new Set(["seemaths.com", "www.seemaths.com", "interactive-maths.vercel.app"]);
 const knownAppScopes = [
   {
@@ -110,6 +111,52 @@ function knownScopeFromValue(value: string) {
 
 function reactionsStorageKey() {
   return "discussit:moderator:reactions:v1";
+}
+
+function currentUrlWithoutHash() {
+  if (typeof window === "undefined") {
+    return "";
+  }
+
+  const nextUrl = new URL(window.location.href);
+  nextUrl.hash = "";
+  return nextUrl.toString();
+}
+
+function rememberAuthReturnUrl() {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  try {
+    window.sessionStorage.setItem(authReturnUrlStorageKey, currentUrlWithoutHash());
+  } catch {
+    // Ignore storage failures for auth redirect convenience.
+  }
+}
+
+function readAuthReturnUrl() {
+  if (typeof window === "undefined") {
+    return "";
+  }
+
+  try {
+    return window.sessionStorage.getItem(authReturnUrlStorageKey) ?? "";
+  } catch {
+    return "";
+  }
+}
+
+function clearAuthReturnUrl() {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  try {
+    window.sessionStorage.removeItem(authReturnUrlStorageKey);
+  } catch {
+    // Ignore storage failures for auth redirect convenience.
+  }
 }
 
 function formatTimestamp(value: string) {
@@ -459,6 +506,28 @@ function App() {
   }, []);
 
   useEffect(() => {
+    if (!authReady || typeof window === "undefined") {
+      return;
+    }
+
+    const desiredUrl = readAuthReturnUrl();
+    const currentUrl = currentUrlWithoutHash();
+
+    if (session && desiredUrl) {
+      if (desiredUrl !== currentUrl) {
+        window.location.replace(desiredUrl);
+        return;
+      }
+
+      clearAuthReturnUrl();
+    }
+
+    if (window.location.hash) {
+      window.history.replaceState({}, "", currentUrl);
+    }
+  }, [authReady, session]);
+
+  useEffect(() => {
     if (!authReady || session || typeof window === "undefined") {
       return;
     }
@@ -469,11 +538,12 @@ function App() {
 
     window.sessionStorage.setItem(autoSignInAttemptKey, "true");
     setAutoSigningIn(true);
+    rememberAuthReturnUrl();
 
     void portalSupabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: window.location.origin,
+        redirectTo: currentUrlWithoutHash(),
         queryParams: {
           prompt: "none",
         },
@@ -1201,10 +1271,11 @@ function App() {
   };
 
   const signIn = async (forceAccountChoice = false) => {
+    rememberAuthReturnUrl();
     await portalSupabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: window.location.origin,
+        redirectTo: currentUrlWithoutHash(),
         queryParams: forceAccountChoice
           ? {
               prompt: "select_account",
