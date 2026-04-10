@@ -37,6 +37,17 @@ export type AnalyticsSessionRecord = {
   screen_height: number | null;
 };
 
+export type AnalyticsGameEventRecord = {
+  id: string;
+  session_id: string;
+  player_id: string;
+  game_id: string;
+  game_name: string;
+  event_type: string;
+  occurred_at: string;
+  payload_json: Record<string, unknown>;
+};
+
 export async function loadAnalyticsSessions(days: number) {
   const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
   const { data, error } = await portalSupabase
@@ -77,6 +88,31 @@ export async function loadAnalyticsSessions(days: number) {
   }
 
   return (data ?? []) as AnalyticsSessionRecord[];
+}
+
+export async function loadAnalyticsGameEvents(days: number) {
+  const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+  const { data, error } = await portalSupabase
+    .from("analytics_game_events")
+    .select(`
+      id,
+      session_id,
+      player_id,
+      game_id,
+      game_name,
+      event_type,
+      occurred_at,
+      payload_json
+    `)
+    .gte("occurred_at", since)
+    .order("occurred_at", { ascending: false })
+    .limit(500);
+
+  if (error) {
+    throw error;
+  }
+
+  return (data ?? []) as AnalyticsGameEventRecord[];
 }
 
 export async function updateCommentReactions(input: {

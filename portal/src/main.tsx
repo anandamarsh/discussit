@@ -1,7 +1,9 @@
 import React, { useEffect, useMemo, useState } from "react";
 import ReactDOM from "react-dom/client";
 import {
+  loadAnalyticsGameEvents,
   loadAnalyticsSessions,
+  type AnalyticsGameEventRecord,
   portalSupabase,
   type AnalyticsSessionRecord,
   updateCommentReactions,
@@ -110,6 +112,28 @@ function mapLocationLabel(item: AnalyticsSessionRecord) {
   return [item.city, item.region, item.country_code].filter(Boolean).join(", ") || "Unknown location";
 }
 
+function describeAnalyticsEvent(item: AnalyticsGameEventRecord) {
+  const payload = item.payload_json ?? {};
+  switch (item.event_type) {
+    case "question_answered":
+      return `Question answered${payload.correct === true ? " correctly" : payload.correct === false ? " incorrectly" : ""}`;
+    case "level_completed":
+      return `Level ${typeof payload.level === "number" || typeof payload.level === "string" ? payload.level : ""} completed`.trim();
+    case "game_completed":
+      return "Game completed";
+    case "monster_round_started":
+      return "Monster round started";
+    case "monster_round_completed":
+      return "Monster round completed";
+    case "platinum_round_started":
+      return "Platinum round started";
+    case "platinum_round_completed":
+      return "Platinum round completed";
+    default:
+      return item.event_type.replace(/_/g, " ");
+  }
+}
+
 function hydrateItem(item: {
   id: string;
   author_name: string;
@@ -206,6 +230,7 @@ function App() {
   const [viewMode, setViewMode] = useState<ViewMode>("analytics");
   const [analyticsRangeDays, setAnalyticsRangeDays] = useState<RangeDays>(7);
   const [analyticsSessions, setAnalyticsSessions] = useState<AnalyticsSessionRecord[]>([]);
+  const [analyticsGameEvents, setAnalyticsGameEvents] = useState<AnalyticsGameEventRecord[]>([]);
   const [analyticsLoading, setAnalyticsLoading] = useState(true);
   const [reactions, setReactions] = useState<Record<string, "like" | "dislike" | null>>(() => {
     if (typeof window === "undefined") {
@@ -368,16 +393,21 @@ function App() {
 
     const loadSessions = async () => {
       try {
-        const sessions = await loadAnalyticsSessions(analyticsRangeDays);
+        const [sessions, events] = await Promise.all([
+          loadAnalyticsSessions(analyticsRangeDays),
+          loadAnalyticsGameEvents(analyticsRangeDays),
+        ]);
         if (!active) {
           return;
         }
         setAnalyticsSessions(sessions);
+        setAnalyticsGameEvents(events);
       } catch {
         if (!active) {
           return;
         }
         setAnalyticsSessions([]);
+        setAnalyticsGameEvents([]);
       } finally {
         if (active) {
           setAnalyticsLoading(false);
@@ -567,6 +597,11 @@ function App() {
   const recentAnalyticsSessions = useMemo(
     () => analyticsSessions.slice(0, 12),
     [analyticsSessions],
+  );
+
+  const recentAnalyticsGameEvents = useMemo(
+    () => analyticsGameEvents.slice(0, 12),
+    [analyticsGameEvents],
   );
 
   useEffect(() => {
@@ -1097,6 +1132,33 @@ function App() {
                         <div className="analytics-recent-meta">
                           <small>{formatDuration(effectiveSessionDurationSeconds(item))}</small>
                           <small>{formatTimestamp(item.started_at)}</small>
+                        </div>
+                      </article>
+                    ))
+                  )}
+                </div>
+              </section>
+
+              <section className="analytics-card analytics-feed-card">
+                <div className="analytics-card-header">
+                  <div>
+                    <p className="portal-kicker">Events</p>
+                    <h2>Recent Game Events</h2>
+                  </div>
+                </div>
+                <div className="analytics-recent-list">
+                  {recentAnalyticsGameEvents.length === 0 ? (
+                    <div className="empty-state analytics-empty">No game events yet.</div>
+                  ) : (
+                    recentAnalyticsGameEvents.map((item) => (
+                      <article key={item.id} className="analytics-recent-item">
+                        <div>
+                          <strong>{item.game_name}</strong>
+                          <span>{describeAnalyticsEvent(item)}</span>
+                        </div>
+                        <div className="analytics-recent-meta">
+                          <small>{item.event_type}</small>
+                          <small>{formatTimestamp(item.occurred_at)}</small>
                         </div>
                       </article>
                     ))

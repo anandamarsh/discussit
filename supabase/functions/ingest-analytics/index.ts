@@ -32,6 +32,8 @@ type AnalyticsPayload = {
   city?: string;
   latitude?: number;
   longitude?: number;
+  eventName?: string;
+  payload?: Record<string, unknown>;
 };
 
 type StoredPushSubscription = {
@@ -202,8 +204,9 @@ Deno.serve(async (request) => {
   const shellUrl = normalizeString(payload.shellUrl, 2048);
   const launchMode = normalizeString(payload.launchMode, 16) || "embedded";
   const endReason = normalizeString(payload.endReason, 80) || null;
+  const eventName = normalizeString(payload.eventName, 120) || null;
 
-  if (!["session_started", "heartbeat", "session_ended"].includes(eventType)) {
+  if (!["session_started", "heartbeat", "session_ended", "game_event"].includes(eventType)) {
     return json(400, { error: "Unsupported analytics event" });
   }
 
@@ -218,6 +221,30 @@ Deno.serve(async (request) => {
   const admin = createClient(supabaseUrl, serviceRoleKey, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
+
+  if (eventType === "game_event") {
+    const occurredAt = normalizeDate(payload.sentAt);
+    const payloadJson =
+      payload.payload && typeof payload.payload === "object" && !Array.isArray(payload.payload)
+        ? payload.payload
+        : {};
+
+    const { error } = await admin.from("analytics_game_events").insert({
+      session_id: sessionId,
+      player_id: playerId,
+      game_id: gameId,
+      game_name: gameName,
+      event_type: eventName || "game_event",
+      occurred_at: occurredAt.toISOString(),
+      payload_json: payloadJson,
+    });
+
+    if (error) {
+      return json(500, { error: "Failed to record analytics game event" });
+    }
+
+    return new Response(null, { status: 204, headers: corsHeaders });
+  }
 
   const baseRow = {
     session_id: sessionId,

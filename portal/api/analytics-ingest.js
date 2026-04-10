@@ -126,8 +126,9 @@ export default async function handler(request, response) {
   const shellUrl = normalizeString(payload?.shellUrl, 2048);
   const launchMode = normalizeString(payload?.launchMode, 16) || "embedded";
   const endReason = normalizeString(payload?.endReason, 80) || null;
+  const eventName = normalizeString(payload?.eventName, 120) || null;
 
-  if (!["session_started", "heartbeat", "session_ended"].includes(eventType)) {
+  if (!["session_started", "heartbeat", "session_ended", "game_event"].includes(eventType)) {
     json(response, 400, { error: "Unsupported analytics event" });
     return;
   }
@@ -156,6 +157,8 @@ export default async function handler(request, response) {
     screenHeight: normalizeInteger(payload?.screenHeight),
     endedAt: payload.endedAt,
     endReason,
+    eventName,
+    payload: payload?.payload && typeof payload.payload === "object" ? payload.payload : {},
     countryCode: geo.countryCode,
     regionCode: geo.regionCode,
     region: geo.region,
