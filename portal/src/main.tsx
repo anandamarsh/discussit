@@ -1666,8 +1666,16 @@ function App() {
                 <section className="analytics-card">
                   <div className="analytics-card-header">
                     <div>
-                      <p className="portal-kicker">{isSiteAnalyticsScope ? "Visitors" : "Games"}</p>
-                      <h2>{isSiteAnalyticsScope ? "See Maths Visits" : isCombinedAnalyticsScope ? "Top Games" : "This Game"}</h2>
+                      <p className="portal-kicker">
+                        {isSiteAnalyticsScope ? "Visitors" : isCombinedAnalyticsScope ? "Games" : "Summary"}
+                      </p>
+                      <h2>
+                        {isSiteAnalyticsScope
+                          ? "See Maths Visits"
+                          : isCombinedAnalyticsScope
+                            ? "Top Games"
+                            : selectedScopeLabel ?? "Game Summary"}
+                      </h2>
                     </div>
                   </div>
                   <div className="analytics-table">
