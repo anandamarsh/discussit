@@ -394,7 +394,7 @@ Deno.serve(async (request) => {
       return json(500, { error: "Failed to record analytics session" });
     }
 
-    if (eventType === "session_started") {
+    if (eventType === "session_started" && gameId !== "__site__") {
       await sendSessionStartPush(admin, row);
     }
 

@@ -120,6 +120,18 @@ function mapLocationLabel(item: AnalyticsSessionRecord) {
   return [item.city, item.region, item.country_code].filter(Boolean).join(", ") || "Unknown location";
 }
 
+function analyticsScopeKey(item: Pick<AnalyticsSessionRecord, "game_id" | "game_url" | "shell_url" | "game_name">) {
+  return item.game_id === "__site__" ? "__site__" : (item.game_url || item.shell_url || item.game_name);
+}
+
+function analyticsScopeLabel(item: Pick<AnalyticsSessionRecord, "game_id" | "game_url" | "shell_url" | "game_name">) {
+  if (item.game_id === "__site__") {
+    return "See Maths";
+  }
+
+  return labelForUrl(item.game_url || item.shell_url || item.game_name);
+}
+
 function describeAnalyticsEvent(item: AnalyticsGameEventRecord) {
   const payload = item.payload_json ?? {};
   switch (item.event_type) {
@@ -571,7 +583,9 @@ function App() {
       .filter((item) => item.pageUrl === selectedUrl)
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   }, [feed, selectedUrl, unreadFeed]);
-  const selectedScopeLabel = selectedUrl ? labelForUrl(selectedUrl) : null;
+  const selectedScopeLabel = selectedUrl
+    ? (selectedUrl === "__site__" ? "See Maths" : labelForUrl(selectedUrl))
+    : null;
   const notificationsEnabled = notificationPreference === "on";
   const roundNotificationsEnabled = roundNotificationPreference === "on";
   const reactionActorName =
@@ -593,21 +607,23 @@ function App() {
 
   const analyticsScopeMap = useMemo(() => {
     const groups = new Map<string, {
-      scopeUrl: string;
+      scopeKey: string;
       label: string;
       subtitle: string;
       todayUsage: number;
+      isSite: boolean;
     }>();
     const today = new Date();
 
     for (const item of analyticsSessions) {
-      const scopeUrl = item.game_url || item.shell_url;
-      const label = labelForUrl(scopeUrl || item.game_name);
-      const current = groups.get(label) ?? {
-        scopeUrl,
+      const scopeKey = analyticsScopeKey(item);
+      const label = analyticsScopeLabel(item);
+      const current = groups.get(scopeKey) ?? {
+        scopeKey,
         label,
-        subtitle: scopeUrl || item.game_name,
+        subtitle: item.game_id === "__site__" ? "Site visitors and home page activity" : (item.game_url || item.shell_url || item.game_name),
         todayUsage: 0,
+        isSite: item.game_id === "__site__",
       };
 
       const startedAt = new Date(item.started_at);
@@ -615,50 +631,62 @@ function App() {
         current.todayUsage += 1;
       }
 
-      groups.set(label, current);
+      groups.set(scopeKey, current);
     }
 
-    return Array.from(groups.values()).sort((a, b) => b.todayUsage - a.todayUsage || a.label.localeCompare(b.label));
+    return Array.from(groups.values()).sort((a, b) => {
+      if (a.isSite !== b.isSite) {
+        return a.isSite ? 1 : -1;
+      }
+      return b.todayUsage - a.todayUsage || a.label.localeCompare(b.label);
+    });
   }, [analyticsSessions]);
 
   const combinedMenuEntries = useMemo(() => {
     const groups = new Map<string, {
-      scopeUrl: string;
+      scopeKey: string;
       label: string;
       subtitle: string;
       unread: number;
       totalComments: number;
       todayUsage: number;
+      isSite: boolean;
     }>();
 
     for (const group of urlGroups) {
       const label = labelForUrl(group.pageUrl);
-      groups.set(label, {
-        scopeUrl: group.pageUrl,
+      groups.set(group.pageUrl, {
+        scopeKey: group.pageUrl,
         label,
         subtitle: group.pageUrl,
         unread: group.unread,
         totalComments: group.total,
         todayUsage: 0,
+        isSite: false,
       });
     }
 
     for (const item of analyticsScopeMap) {
-      const current = groups.get(item.label) ?? {
-        scopeUrl: item.scopeUrl,
+      const current = groups.get(item.scopeKey) ?? {
+        scopeKey: item.scopeKey,
         label: item.label,
         subtitle: item.subtitle,
         unread: 0,
         totalComments: 0,
         todayUsage: 0,
+        isSite: item.isSite,
       };
-      current.scopeUrl = current.scopeUrl || item.scopeUrl;
+      current.scopeKey = current.scopeKey || item.scopeKey;
       current.subtitle = current.subtitle || item.subtitle;
       current.todayUsage = item.todayUsage;
-      groups.set(item.label, current);
+      current.isSite = item.isSite;
+      groups.set(item.scopeKey, current);
     }
 
     return Array.from(groups.values()).sort((a, b) => {
+      if (a.isSite !== b.isSite) {
+        return a.isSite ? 1 : -1;
+      }
       const aBadge = viewMode === "comments" ? a.unread : a.todayUsage;
       const bBadge = viewMode === "comments" ? b.unread : b.todayUsage;
       return bBadge - aBadge || a.label.localeCompare(b.label);
@@ -668,33 +696,34 @@ function App() {
   const analyticsGameScopeById = useMemo(() => {
     const scopeByGameId = new Map<string, string>();
     for (const item of analyticsSessions) {
-      scopeByGameId.set(item.game_id, labelForUrl(item.game_url || item.shell_url || item.game_name));
+      scopeByGameId.set(item.game_id, analyticsScopeKey(item));
     }
     return scopeByGameId;
   }, [analyticsSessions]);
 
   const visibleAnalyticsSessions = useMemo(() => {
-    if (!selectedScopeLabel) {
+    if (!selectedUrl) {
       return analyticsSessions;
     }
 
     return analyticsSessions.filter((item) =>
-      labelForUrl(item.game_url || item.shell_url || item.game_name) === selectedScopeLabel);
-  }, [analyticsSessions, selectedScopeLabel]);
+      analyticsScopeKey(item) === selectedUrl);
+  }, [analyticsSessions, selectedUrl]);
 
   const visibleAnalyticsGameEvents = useMemo(() => {
-    if (!selectedScopeLabel) {
+    if (!selectedUrl) {
       return analyticsGameEvents;
     }
 
-    return analyticsGameEvents.filter((item) => analyticsGameScopeById.get(item.game_id) === selectedScopeLabel);
-  }, [analyticsGameEvents, analyticsGameScopeById, selectedScopeLabel]);
+    return analyticsGameEvents.filter((item) => analyticsGameScopeById.get(item.game_id) === selectedUrl);
+  }, [analyticsGameEvents, analyticsGameScopeById, selectedUrl]);
 
   const currentTitle = selectedScopeLabel
     ? `${selectedScopeLabel} ${viewMode === "comments" ? "Comments" : "Analytics"}`
     : viewMode === "comments"
       ? "Moderator Comments"
       : "Usage Analytics";
+  const isCombinedAnalyticsScope = selectedUrl === null;
 
   const liveAnalyticsSessions = useMemo(
     () => visibleAnalyticsSessions.filter((item) => isLiveSession(item)).sort((a, b) =>
@@ -953,6 +982,35 @@ function App() {
     () => visibleAnalyticsGameEvents.slice(0, 12),
     [visibleAnalyticsGameEvents],
   );
+
+  const roundEventSummary = useMemo(() => {
+    let roundsCompleted = 0;
+    let levelsCompleted = 0;
+    let gamesCompleted = 0;
+    let questionsAnswered = 0;
+
+    for (const item of visibleAnalyticsGameEvents) {
+      if (item.event_type === "monster_round_completed" || item.event_type === "platinum_round_completed") {
+        roundsCompleted += 1;
+      }
+      if (item.event_type === "level_completed") {
+        levelsCompleted += 1;
+      }
+      if (item.event_type === "game_completed") {
+        gamesCompleted += 1;
+      }
+      if (item.event_type === "question_answered") {
+        questionsAnswered += 1;
+      }
+    }
+
+    return {
+      roundsCompleted,
+      levelsCompleted,
+      gamesCompleted,
+      questionsAnswered,
+    };
+  }, [visibleAnalyticsGameEvents]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -1290,10 +1348,10 @@ function App() {
                 {combinedMenuEntries.map((group) => (
                   <button
                     type="button"
-                    key={group.scopeUrl}
-                    className={`menu-item ${selectedUrl === group.scopeUrl ? "is-active" : ""}`}
+                    key={group.scopeKey}
+                    className={`menu-item ${selectedUrl === group.scopeKey ? "is-active" : ""}`}
                     onClick={() => {
-                      chooseUrl(group.scopeUrl);
+                      chooseUrl(group.scopeKey);
                       setMenuOpen(false);
                     }}
                   >
@@ -1433,22 +1491,24 @@ function App() {
                 </section>
               </div>
 
-              <section className="analytics-card">
-                <div className="analytics-card-header">
-                  <div>
-                    <p className="portal-kicker">Legend</p>
-                    <h2>Games in the Charts</h2>
+              {isCombinedAnalyticsScope ? (
+                <section className="analytics-card">
+                  <div className="analytics-card-header">
+                    <div>
+                      <p className="portal-kicker">Legend</p>
+                      <h2>Games in the Charts</h2>
+                    </div>
                   </div>
-                </div>
-                <div className="analytics-legend-list">
-                  {chartLegendItems.map((item) => (
-                    <span key={item.key} className="analytics-legend-item">
-                      <span className="analytics-legend-swatch" style={{ background: item.color }} />
-                      <span>{item.label}</span>
-                    </span>
-                  ))}
-                </div>
-              </section>
+                  <div className="analytics-legend-list">
+                    {chartLegendItems.map((item) => (
+                      <span key={item.key} className="analytics-legend-item">
+                        <span className="analytics-legend-swatch" style={{ background: item.color }} />
+                        <span>{item.label}</span>
+                      </span>
+                    ))}
+                  </div>
+                </section>
+              ) : null}
 
               <div className="analytics-layout-grid analytics-layout-grid-wide">
                 <section className="analytics-card analytics-map-card">
@@ -1548,6 +1608,37 @@ function App() {
               </div>
 
               <div className="analytics-feed-grid">
+                <section className="analytics-card">
+                  <div className="analytics-card-header">
+                    <div>
+                      <p className="portal-kicker">Game Progress</p>
+                      <h2>Rounds And Completions</h2>
+                    </div>
+                  </div>
+                  <div className="analytics-overview-grid analytics-overview-grid-compact">
+                    <article className="analytics-stat-card">
+                      <span className="analytics-stat-label">Rounds</span>
+                      <strong>{roundEventSummary.roundsCompleted}</strong>
+                      <small>Completed monster or platinum rounds</small>
+                    </article>
+                    <article className="analytics-stat-card">
+                      <span className="analytics-stat-label">Levels</span>
+                      <strong>{roundEventSummary.levelsCompleted}</strong>
+                      <small>Levels cleared</small>
+                    </article>
+                    <article className="analytics-stat-card">
+                      <span className="analytics-stat-label">Games</span>
+                      <strong>{roundEventSummary.gamesCompleted}</strong>
+                      <small>Games completed</small>
+                    </article>
+                    <article className="analytics-stat-card">
+                      <span className="analytics-stat-label">Answers</span>
+                      <strong>{roundEventSummary.questionsAnswered}</strong>
+                      <small>Questions answered</small>
+                    </article>
+                  </div>
+                </section>
+
                 <section className="analytics-card analytics-feed-card">
                   <div className="analytics-card-header">
                     <div>
