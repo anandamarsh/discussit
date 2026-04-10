@@ -4,7 +4,7 @@ import { createClient } from "jsr:@supabase/supabase-js@2";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Methods": "POST, DELETE, OPTIONS",
   "Content-Type": "application/json",
 };
 
@@ -36,7 +36,7 @@ Deno.serve(async (request) => {
     return new Response("ok", { headers: corsHeaders });
   }
 
-  if (request.method !== "POST") {
+  if (request.method !== "POST" && request.method !== "DELETE") {
     return json(405, { error: "Method not allowed" });
   }
 
@@ -47,12 +47,34 @@ Deno.serve(async (request) => {
     return json(500, { error: "Missing Supabase server configuration" });
   }
 
-  let payload: { subscription?: PushSubscriptionPayload; app?: AppPayload };
+  let payload: {
+    endpoint?: string;
+    subscription?: PushSubscriptionPayload;
+    app?: AppPayload;
+  };
 
   try {
     payload = await request.json();
   } catch {
     return json(400, { error: "Invalid JSON body" });
+  }
+
+  const admin = createClient(supabaseUrl, serviceRoleKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+
+  if (request.method === "DELETE") {
+    const endpoint = payload.endpoint?.trim() || payload.subscription?.endpoint?.trim() || "";
+    if (!endpoint) {
+      return json(400, { error: "Missing push subscription endpoint" });
+    }
+
+    const { error } = await admin.from("push_subscriptions").delete().eq("endpoint", endpoint);
+    if (error) {
+      return json(500, { error: "Failed to delete push subscription" });
+    }
+
+    return json(200, { ok: true });
   }
 
   const subscription = payload.subscription;
@@ -64,10 +86,6 @@ Deno.serve(async (request) => {
   const appName = payload.app?.appName?.trim() || "DiscussIt Moderator";
   const appOrigin = payload.app?.appOrigin?.trim() || "https://discussit-portal.vercel.app";
   const appScope = payload.app?.appScope?.trim() || "https://discussit-portal.vercel.app/";
-
-  const admin = createClient(supabaseUrl, serviceRoleKey, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
 
   const { error } = await admin.from("push_subscriptions").upsert(
     {
