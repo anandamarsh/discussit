@@ -18,6 +18,30 @@ type CommentItem = {
 };
 
 const initialComments: CommentItem[] = [];
+const seeMathsHostAliases = new Set([
+  "seemaths.com",
+  "www.seemaths.com",
+  "interactive-maths.vercel.app",
+]);
+
+function commentScopeUrls(pageUrl: string) {
+  try {
+    const url = new URL(pageUrl);
+    if (!seeMathsHostAliases.has(url.hostname)) {
+      return [pageUrl];
+    }
+
+    return Array.from(seeMathsHostAliases, (hostname) => {
+      const alias = new URL(url.toString());
+      alias.hostname = hostname;
+      alias.port = "";
+      alias.protocol = "https:";
+      return alias.toString();
+    });
+  } catch {
+    return [pageUrl];
+  }
+}
 
 function reactionsStorageKey(pageUrl: string) {
   return `discussit:reactions:v1:${pageUrl}`;
@@ -67,6 +91,7 @@ function App() {
     const search = new URLSearchParams(window.location.search);
     return search.get("url") ?? "http://localhost:4001/example";
   }, []);
+  const scopedPageUrls = useMemo(() => commentScopeUrls(pageUrl), [pageUrl]);
   const theme = useMemo(() => {
     const search = new URLSearchParams(window.location.search);
     return search.get("theme") ?? "light";
@@ -132,7 +157,7 @@ function App() {
       const { data, error } = await widgetSupabase
         .from("comments")
         .select("id, author_name, body, created_at, likes, dislikes")
-        .eq("page_url", pageUrl)
+        .in("page_url", scopedPageUrls)
         .order("created_at", { ascending: false });
 
       if (!controller.signal.aborted && !error) {
@@ -174,7 +199,7 @@ function App() {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
       window.removeEventListener("focus", handleFocus);
     };
-  }, [pageUrl]);
+  }, [pageUrl, scopedPageUrls]);
 
   useEffect(() => {
     const channel = widgetSupabase
@@ -185,7 +210,6 @@ function App() {
           event: "INSERT",
           schema: "public",
           table: "comments",
-          filter: `page_url=eq.${pageUrl}`,
         },
         (payload) => {
           const inserted = payload.new as {
@@ -195,7 +219,12 @@ function App() {
             created_at: string;
             likes: number;
             dislikes: number;
+            page_url?: string;
           };
+
+          if (!inserted.page_url || !scopedPageUrls.includes(inserted.page_url)) {
+            return;
+          }
 
           setComments((current) => {
             if (current.some((comment) => comment.id === inserted.id)) {
@@ -222,7 +251,6 @@ function App() {
           event: "UPDATE",
           schema: "public",
           table: "comments",
-          filter: `page_url=eq.${pageUrl}`,
         },
         (payload) => {
           const updated = payload.new as {
@@ -232,7 +260,12 @@ function App() {
             created_at: string;
             likes: number;
             dislikes: number;
+            page_url?: string;
           };
+
+          if (!updated.page_url || !scopedPageUrls.includes(updated.page_url)) {
+            return;
+          }
 
           setComments((current) =>
             current.map((comment) =>
@@ -259,7 +292,7 @@ function App() {
         },
         (payload) => {
           const removed = payload.old as { id: string; page_url?: string };
-          if (removed.page_url && removed.page_url !== pageUrl) {
+          if (removed.page_url && !scopedPageUrls.includes(removed.page_url)) {
             return;
           }
           setComments((current) => current.filter((comment) => comment.id !== removed.id));
@@ -270,7 +303,7 @@ function App() {
     return () => {
       void widgetSupabase.removeChannel(channel);
     };
-  }, [pageUrl]);
+  }, [pageUrl, scopedPageUrls]);
 
   useEffect(() => {
     window.localStorage.setItem(reactionsStorageKey(pageUrl), JSON.stringify(reactions));
