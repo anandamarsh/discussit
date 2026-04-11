@@ -105,13 +105,17 @@ function moderatorPortalUrl() {
   return Deno.env.get("MODERATOR_PORTAL_URL") ?? "https://discussit-portal.vercel.app";
 }
 
+function formatLocation(city: string | null, region: string | null, countryCode: string | null) {
+  return [city, region, countryCode].filter(Boolean).join(", ");
+}
+
 function gameSessionLabel(gameName: string, city: string | null, region: string | null, countryCode: string | null) {
-  const location = [city, region, countryCode].filter(Boolean).join(", ");
+  const location = formatLocation(city, region, countryCode);
   return location ? `${gameName} started in ${location}` : `${gameName} started`;
 }
 
 function siteVisitLabel(city: string | null, region: string | null, countryCode: string | null) {
-  const location = [city, region, countryCode].filter(Boolean).join(", ");
+  const location = formatLocation(city, region, countryCode);
   return location ? `New See Maths visit from ${location}` : "New See Maths visit";
 }
 
@@ -203,35 +207,47 @@ function gameEventPushLabel(
   gameName: string,
   eventName: string,
   payload: Record<string, unknown>,
+  city: string | null,
+  region: string | null,
+  countryCode: string | null,
 ) {
+  const location = formatLocation(city, region, countryCode);
+  const withLocation = (label: string) => (location ? `${label} in ${location}` : label);
+
   if (eventName === "monster_round_started") {
-    return `${gameName}: monster round started`;
+    return withLocation(`${gameName}: monster round started`);
   }
   if (eventName === "monster_round_completed") {
-    return `${gameName}: monster round completed`;
+    return withLocation(`${gameName}: monster round completed`);
   }
   if (eventName === "platinum_round_started") {
-    return `${gameName}: platinum round started`;
+    return withLocation(`${gameName}: platinum round started`);
   }
   if (eventName === "platinum_round_completed") {
-    return `${gameName}: platinum round completed`;
+    return withLocation(`${gameName}: platinum round completed`);
   }
   if (eventName === "level_started") {
     const level = typeof payload.level === "number" || typeof payload.level === "string" ? payload.level : null;
-    return level ? `${gameName}: level ${level} started` : `${gameName}: level started`;
+    return level
+      ? withLocation(`${gameName}: level ${level} started`)
+      : withLocation(`${gameName}: level started`);
   }
   if (eventName === "level_finished") {
     const level = typeof payload.level === "number" || typeof payload.level === "string" ? payload.level : null;
-    return level ? `${gameName}: level ${level} finished` : `${gameName}: level finished`;
+    return level
+      ? withLocation(`${gameName}: level ${level} finished`)
+      : withLocation(`${gameName}: level finished`);
   }
   if (eventName === "level_completed") {
     const level = typeof payload.level === "number" || typeof payload.level === "string" ? payload.level : null;
-    return level ? `${gameName}: level ${level} completed` : `${gameName}: level completed`;
+    return level
+      ? withLocation(`${gameName}: level ${level} completed`)
+      : withLocation(`${gameName}: level completed`);
   }
   if (eventName === "game_completed") {
-    return `${gameName}: game completed`;
+    return withLocation(`${gameName}: game completed`);
   }
-  return `${gameName}: ${eventName.replace(/_/g, " ")}`;
+  return withLocation(`${gameName}: ${eventName.replace(/_/g, " ")}`);
 }
 
 async function sendRoundEventPush(
@@ -263,9 +279,22 @@ async function sendRoundEventPush(
     return;
   }
 
+  const { data: session } = await admin
+    .from("analytics_sessions")
+    .select("city, region, country_code")
+    .eq("session_id", event.session_id)
+    .maybeSingle();
+
   const notificationPayload = JSON.stringify({
     title: "See Maths Round Update",
-    body: gameEventPushLabel(event.game_name, event.event_name, event.payload_json),
+    body: gameEventPushLabel(
+      event.game_name,
+      event.event_name,
+      event.payload_json,
+      session?.city ?? null,
+      session?.region ?? null,
+      session?.country_code ?? null,
+    ),
     url: moderatorPortalUrl(),
     tag: `analytics-game-event-${event.session_id}-${event.event_name}`,
   });
