@@ -56,6 +56,17 @@ function normalizeString(value: unknown, maxLength = 255) {
   return typeof value === "string" ? value.trim().slice(0, maxLength) : "";
 }
 
+function normalizeLocationString(value: unknown, maxLength = 255) {
+  const normalized = normalizeString(value, maxLength);
+  if (!normalized) return "";
+
+  try {
+    return decodeURIComponent(normalized.replace(/\+/g, " ")).trim().slice(0, maxLength);
+  } catch {
+    return normalized;
+  }
+}
+
 function normalizeInteger(value: unknown) {
   const number = Number(value);
   return Number.isInteger(number) ? number : null;
@@ -394,10 +405,10 @@ Deno.serve(async (request) => {
     launch_mode: launchMode === "new-tab" ? "new-tab" : "embedded",
     started_at: startedAt.toISOString(),
     last_heartbeat_at: sentAt.toISOString(),
-    country_code: normalizeString(payload.countryCode, 8).toUpperCase() || null,
-    region_code: normalizeString(payload.regionCode, 32) || null,
-    region: normalizeString(payload.region, 120) || null,
-    city: normalizeString(payload.city, 120) || null,
+    country_code: normalizeLocationString(payload.countryCode, 8).toUpperCase() || null,
+    region_code: normalizeLocationString(payload.regionCode, 32) || null,
+    region: normalizeLocationString(payload.region, 120) || null,
+    city: normalizeLocationString(payload.city, 120) || null,
     latitude: normalizeNumber(payload.latitude),
     longitude: normalizeNumber(payload.longitude),
     timezone: normalizeString(payload.timezone, 120) || null,
