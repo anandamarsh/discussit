@@ -97,7 +97,16 @@ function allowedCommentPageOrigins() {
   return withDefaultEntries(parseAllowedList("ALLOWED_COMMENT_PAGE_ORIGINS"), [
     "https://seemaths.com",
     "https://www.seemaths.com",
+    "https://interactive-maths.vercel.app",
+    "https://maths-angle-explorer.vercel.app",
+    "https://maths-distance-calculator.vercel.app",
+    "https://maths-game-template.vercel.app",
+    "https://maths-variable-expression.vercel.app",
     "http://localhost:4000",
+    "http://localhost:4001",
+    "http://localhost:4002",
+    "http://localhost:4003",
+    "http://localhost:5173",
   ]);
 }
 
