@@ -27,8 +27,10 @@ const seeMathsHostAliases = new Set([
 function commentScopeUrls(pageUrl: string) {
   try {
     const url = new URL(pageUrl);
+    url.hash = "";
+    url.search = "";
     if (!seeMathsHostAliases.has(url.hostname)) {
-      return [pageUrl];
+      return [url.toString()];
     }
 
     return Array.from(seeMathsHostAliases, (hostname) => {
@@ -154,15 +156,21 @@ function App() {
     const controller = new AbortController();
 
     const loadComments = async () => {
-      const { data, error } = await widgetSupabase
-        .from("comments")
-        .select("id, author_name, body, created_at, likes, dislikes")
-        .in("page_url", scopedPageUrls)
-        .order("created_at", { ascending: false });
+      const { data, error } = await widgetSupabase.rpc("get_comments_for_page", {
+        requested_page_url: pageUrl,
+      });
 
       if (!controller.signal.aborted && !error) {
+        const rows = (data ?? []) as Array<{
+          id: string;
+          author_name: string;
+          body: string;
+          created_at: string;
+          likes: number;
+          dislikes: number;
+        }>;
         setComments(
-          (data ?? []).map((item) => ({
+          rows.map((item) => ({
             id: item.id,
             authorName: item.author_name,
             body: item.body,

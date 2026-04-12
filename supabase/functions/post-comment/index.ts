@@ -26,6 +26,32 @@ type StoredPushSubscription = {
   app_scope?: string | null;
 };
 
+function normalizeCommentPageUrl(rawUrl: string) {
+  const trimmed = rawUrl.trim();
+  if (!trimmed) {
+    return trimmed;
+  }
+
+  try {
+    const url = new URL(trimmed);
+    url.hash = "";
+    url.search = "";
+
+    if (
+      url.hostname === "www.seemaths.com" ||
+      url.hostname === "interactive-maths.vercel.app"
+    ) {
+      url.hostname = "seemaths.com";
+      url.port = "";
+      url.protocol = "https:";
+    }
+
+    return url.toString();
+  } catch {
+    return trimmed;
+  }
+}
+
 function moderatorPortalUrl(pageUrl: string) {
   const baseUrl = Deno.env.get("MODERATOR_PORTAL_URL") ?? "https://discussit-portal.vercel.app";
   const url = new URL(baseUrl);
@@ -164,6 +190,7 @@ Deno.serve(async (request) => {
   } catch {
     return json(400, { error: "Invalid page URL" });
   }
+  const normalizedPageUrl = normalizeCommentPageUrl(pageUrl);
 
   const originHeader = request.headers.get("origin");
   const refererHeader = request.headers.get("referer");
@@ -205,7 +232,7 @@ Deno.serve(async (request) => {
       .from("comment_submission_log")
       .select("id", { count: "exact", head: true })
       .eq("request_key", requestKey)
-      .eq("page_url", pageUrl)
+      .eq("page_url", normalizedPageUrl)
       .gte("created_at", windowStart),
   ]);
 
@@ -224,7 +251,7 @@ Deno.serve(async (request) => {
   const { data, error } = await admin
     .from("comments")
     .insert({
-      page_url: pageUrl,
+      page_url: normalizedPageUrl,
       author_name: authorName,
       author_email: authorEmail,
       body,
@@ -238,7 +265,7 @@ Deno.serve(async (request) => {
 
   const { error: logError } = await admin.from("comment_submission_log").insert({
     request_key: requestKey,
-    page_url: pageUrl,
+    page_url: normalizedPageUrl,
   });
 
   if (logError) {
@@ -256,14 +283,14 @@ Deno.serve(async (request) => {
     if (!subscriptionError && subscriptions?.length) {
       await Promise.all(
         subscriptions.map(async (subscription: StoredPushSubscription) => {
-          if (!shouldNotifySubscription(subscription, parsedPageUrl.origin)) {
-            return;
-          }
+      if (!shouldNotifySubscription(subscription, parsedPageUrl.origin)) {
+        return;
+      }
 
           const notificationPayload = JSON.stringify({
             title: `New comment on ${gameLabel}`,
             body: `${data.author_name} posted a new comment`,
-            url: notificationTargetUrl(subscription, pageUrl),
+            url: notificationTargetUrl(subscription, normalizedPageUrl),
             tag: `comment-${data.id}`,
           });
 

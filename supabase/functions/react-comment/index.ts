@@ -28,6 +28,32 @@ type StoredPushSubscription = {
   app_scope?: string | null;
 };
 
+function normalizeCommentPageUrl(rawUrl: string) {
+  const trimmed = rawUrl.trim();
+  if (!trimmed) {
+    return trimmed;
+  }
+
+  try {
+    const url = new URL(trimmed);
+    url.hash = "";
+    url.search = "";
+
+    if (
+      url.hostname === "www.seemaths.com" ||
+      url.hostname === "interactive-maths.vercel.app"
+    ) {
+      url.hostname = "seemaths.com";
+      url.port = "";
+      url.protocol = "https:";
+    }
+
+    return url.toString();
+  } catch {
+    return trimmed;
+  }
+}
+
 function moderatorPortalUrl(pageUrl: string) {
   const baseUrl = Deno.env.get("MODERATOR_PORTAL_URL") ?? "https://discussit-portal.vercel.app";
   const url = new URL(baseUrl);
@@ -142,6 +168,7 @@ Deno.serve(async (request) => {
   } catch {
     return json(400, { error: "Invalid page URL" });
   }
+  const normalizedPageUrl = normalizeCommentPageUrl(pageUrl);
 
   const originHeader = request.headers.get("origin");
   const refererHeader = request.headers.get("referer");
@@ -171,7 +198,7 @@ Deno.serve(async (request) => {
     .from("comments")
     .update({ likes, dislikes })
     .eq("id", commentId)
-    .eq("page_url", pageUrl)
+    .eq("page_url", normalizedPageUrl)
     .select("id, author_name, body, created_at, likes, dislikes")
     .single();
 
@@ -197,7 +224,7 @@ Deno.serve(async (request) => {
           const notificationPayload = JSON.stringify({
             title: "DiscussIt Moderator",
             body: `${actorName} ${verb} a comment by ${updated.author_name}`,
-            url: notificationTargetUrl(subscription, pageUrl),
+            url: notificationTargetUrl(subscription, normalizedPageUrl),
             tag: `reaction-${updated.id}-${reaction}`,
           });
 
