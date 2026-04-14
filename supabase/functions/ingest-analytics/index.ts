@@ -203,6 +203,15 @@ function shouldSendRoundEventPush(eventName: string | null) {
   ].includes(eventName ?? "");
 }
 
+function isLevelLifecycleEvent(eventName: string) {
+  return [
+    "level_started",
+    "level_finished",
+    "level_completed",
+    "game_completed",
+  ].includes(eventName);
+}
+
 function gameEventPushLabel(
   gameName: string,
   eventName: string,
@@ -256,6 +265,7 @@ async function sendRoundEventPush(
     session_id: string;
     game_name: string;
     event_name: string;
+    occurred_at: string;
     payload_json: Record<string, unknown>;
   },
 ) {
@@ -272,10 +282,21 @@ async function sendRoundEventPush(
   const { data: subscriptions, error } = await admin
     .from("push_subscriptions")
     .select("endpoint, expiration_time, keys_auth, keys_p256dh, app_id, notify_round_events")
-    .eq("app_id", "discussit-moderator")
-    .eq("notify_round_events", true);
+    .eq("app_id", "discussit-moderator");
 
   if (error || !subscriptions?.length) {
+    return;
+  }
+
+  const targetSubscriptions = (subscriptions as StoredPushSubscription[]).filter((subscription) => {
+    if (isLevelLifecycleEvent(event.event_name)) {
+      return true;
+    }
+
+    return subscription.notify_round_events === true;
+  });
+
+  if (!targetSubscriptions.length) {
     return;
   }
 
@@ -296,11 +317,19 @@ async function sendRoundEventPush(
       session?.country_code ?? null,
     ),
     url: moderatorPortalUrl(),
-    tag: `analytics-game-event-${event.session_id}-${event.event_name}`,
+    tag: [
+      "analytics-game-event",
+      event.session_id,
+      event.event_name,
+      typeof event.payload_json.level === "number" || typeof event.payload_json.level === "string"
+        ? String(event.payload_json.level)
+        : "na",
+      event.occurred_at,
+    ].join("-"),
   });
 
   await Promise.all(
-    (subscriptions as StoredPushSubscription[]).map(async (subscription) => {
+    targetSubscriptions.map(async (subscription) => {
       try {
         await webpush.sendNotification(
           {
@@ -416,6 +445,7 @@ Deno.serve(async (request) => {
         session_id: sessionId,
         game_name: gameName,
         event_name: eventName ?? "game_event",
+        occurred_at: occurredAt.toISOString(),
         payload_json: payloadJson,
       });
     }
