@@ -127,6 +127,7 @@ function allowedCommentPageOrigins() {
     "https://maths-angle-explorer.vercel.app",
     "https://maths-distance-calculator.vercel.app",
     "https://maths-game-template.vercel.app",
+    "https://maths-pack-it.vercel.app",
     "https://maths-variable-expression.vercel.app",
     "http://localhost:4000",
     "http://localhost:4001",

@@ -70,6 +70,12 @@ const knownAppScopes = [
     isSite: false,
   },
   {
+    scopeKey: "https://maths-pack-it.vercel.app/",
+    label: "Pack It!",
+    subtitle: "https://maths-pack-it.vercel.app/",
+    isSite: false,
+  },
+  {
     scopeKey: "https://locicomplex.com/",
     label: "Loci Complex",
     subtitle: "https://locicomplex.com/",

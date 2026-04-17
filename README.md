@@ -53,6 +53,7 @@ DiscussIt is currently wired into:
 - `interactive-maths`
 - `maths-angle-explorer`
 - `maths-distance-calculator`
+- `maths-pack-it`
 
 ## Planning Archive
 
